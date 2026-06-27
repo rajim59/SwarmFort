@@ -1,0 +1,58 @@
+version: '3.8'
+services:
+  manager1:
+    image: docker:dind
+    privileged: true
+    volumes:
+      - ../..:/infra
+    networks:
+      swarm_net:
+        ipv4_address: 192.168.56.10
+    hostname: swarm-manager-1
+
+  manager2:
+    image: docker:dind
+    privileged: true
+    volumes:
+      - ../..:/infra
+    networks:
+      swarm_net:
+        ipv4_address: 192.168.56.11
+    hostname: swarm-manager-2
+
+  manager3:
+    image: docker:dind
+    privileged: true
+    volumes:
+      - ../..:/infra
+    networks:
+      swarm_net:
+        ipv4_address: 192.168.56.12
+    hostname: swarm-manager-3
+
+  worker1:
+    image: docker:dind
+    privileged: true
+    volumes:
+      - ../..:/infra
+    networks:
+      swarm_net:
+        ipv4_address: 192.168.56.13
+    hostname: swarm-worker-1
+
+  worker2:
+    image: docker:dind
+    privileged: true
+    volumes:
+      - ../..:/infra
+    networks:
+      swarm_net:
+        ipv4_address: 192.168.56.14
+    hostname: swarm-worker-2
+
+networks:
+  swarm_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.56.0/24
