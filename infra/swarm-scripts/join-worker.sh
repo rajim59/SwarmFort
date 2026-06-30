@@ -1,19 +1,16 @@
 #!/bin/bash
 set -e
 
-SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}')
+# Usage: join-worker.sh <worker-token> <manager-private-ip>
+TOKEN="$1"
+MANAGER_IP="$2"
 
-if [ "$SWARM_STATE" != "active" ]; then
-    echo "Error: This node is not part of an active swarm."
+if [ -z "$TOKEN" ] || [ -z "$MANAGER_IP" ]; then
+    echo "Usage: $0 <worker-token> <manager-private-ip>"
     exit 1
 fi
 
-MANAGER_IP=$(docker info --format '{{.Swarm.NodeAddr}}')
-MGR_TOKEN=$(docker swarm join-token -q manager)
-WKR_TOKEN=$(docker swarm join-token -q worker)
+# Join as worker
+docker swarm join --token "$TOKEN" "$MANAGER_IP:2377"
 
-echo "Manager Join Command:"
-echo "docker swarm join --token ${MGR_TOKEN} ${MANAGER_IP}:2377"
-echo ""
-echo "Worker Join Command:"
-echo "docker swarm join --token ${WKR_TOKEN} ${MANAGER_IP}:2377"
+echo "Node joined the swarm successfully."

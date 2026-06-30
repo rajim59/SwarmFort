@@ -1,0 +1,46 @@
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+.terraform.lock.hcl
+# Terraform assets
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Vagrant assets
+.vagrant/
+# Vagrant
+.vagrant/
+*.box
+
+# OS & Editor
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# Secrets & Environment
+.env
+*.pem
+*.key
+secrets/
+credentials/
+
+# Build & Dependencies
+node_modules/
+__pycache__/
+*.pyc
+
+# Docker build context (optional)
+app/src/__pycache__/
+
+# Backup files
+*.bak
+*.tar.gz
+*.zip

@@ -1,12 +1,32 @@
-# আপনার আগে তৈরি করা টোকেনটি এখানে বসান (ম্যানুয়ালি একবার)
-TOKEN = SWMTKN-1-2q9ghacht6rimmoeqahv6e76izziyhy95vtcam7kp0ihkz6fa8-1lu27w92iauhpw2ykf0olj5le
-MANAGER_IP = 192.168.65.3
+.PHONY: infra-up infra-down swarm-init swarm-token get-tokens
 
-# নোড জয়েন করার জন্য প্রফেশনাল রুল
-join-nodes:
-	@echo "Joining nodes to the cluster..."
-	ssh root@swarm-manager-2 'docker swarm join --token $(TOKEN) $(MANAGER_IP):2377'
-	ssh root@swarm-manager-3 'docker swarm join --token $(TOKEN) $(MANAGER_IP):2377'
-	ssh root@swarm-worker-1 'docker swarm join --token $(TOKEN) $(MANAGER_IP):2377'
-	ssh root@swarm-worker-2 'docker swarm join --token $(TOKEN) $(MANAGER_IP):2377'
-	ssh root@$(MANAGER_IP) 'docker node ls'
+infra-up:
+	cd infra/terraform && terraform init && terraform apply -auto-approve
+	@echo "Infrastructure ready. Manager public IP: $$(cd infra/terraform && terraform output -raw manager_public_ip)"
+
+infra-down:
+	cd infra/terraform && terraform destroy -auto-approve
+
+# Run AFTER SSH-ing into manager (or via remote execution)
+swarm-init:
+	@echo "Initialising Swarm on manager. Use the manager's private IP:"
+	@echo "Run on manager: docker swarm init --advertise-addr \$$(hostname -I | awk '{print \$$1}')"
+
+# Fetch join tokens (run after manager init) - you can script this later
+get-tokens:
+	@echo "SSH into manager and run:"
+	@echo "  docker swarm join-token manager"
+	@echo "  docker swarm join-token worker"
+
+# Simple stop/start to save credits
+swarm-stop:
+	az vm deallocate --ids $$(az vm list --resource-group swarmfort-resources-v3 --query "[].id" -o tsv)
+	@echo "Waiting 15 seconds for deallocation..."
+	sleep 5
+	az vm list -g swarmfort-resources-v3 -d --query "[].[name,powerState]" -o table
+
+swarm-start:
+	az vm start --ids $$(az vm list --resource-group swarmfort-resources-v3 --query "[].id" -o tsv)
+	@echo "Waiting 10s for VMs to start..."
+	sleep 5
+	az vm list -g swarmfort-resources-v3 -d --query "[].[name,powerState]" -o table
