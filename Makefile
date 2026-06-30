@@ -28,5 +28,5 @@ swarm-stop:
 swarm-start:
 	az vm start --ids $$(az vm list --resource-group swarmfort-resources-v3 --query "[].id" -o tsv)
 	@echo "Waiting 10s for VMs to start..."
-	sleep 5
+	sleep 8
 	az vm list -g swarmfort-resources-v3 -d --query "[].[name,powerState]" -o table
