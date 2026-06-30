@@ -1,17 +1,10 @@
 # Terraform
-**/.terraform/*
+.terraform/
 *.tfstate
 *.tfstate.*
 *.tfvars
 .terraform.lock.hcl
-# Terraform assets
-.terraform/
-*.tfstate
-*.tfstate.backup
-.terraform.lock.hcl
 
-# Vagrant assets
-.vagrant/
 # Vagrant
 .vagrant/
 *.box
@@ -36,8 +29,6 @@ credentials/
 node_modules/
 __pycache__/
 *.pyc
-
-# Docker build context (optional)
 app/src/__pycache__/
 
 # Backup files
