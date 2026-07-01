@@ -1,32 +1,67 @@
-.PHONY: infra-up infra-down swarm-init swarm-token get-tokens
+.PHONY: infra-up infra-down swarm-setup verify-cluster swarm-stop swarm-start
 
 infra-up:
 	cd infra/terraform && terraform init && terraform apply -auto-approve
-	@echo "Infrastructure ready. Manager public IP: $$(cd infra/terraform && terraform output -raw manager_public_ip)"
+	$(MAKE) swarm-setup
 
 infra-down:
 	cd infra/terraform && terraform destroy -auto-approve
 
-# Run AFTER SSH-ing into manager (or via remote execution)
-swarm-init:
-	@echo "Initialising Swarm on manager. Use the manager's private IP:"
-	@echo "Run on manager: docker swarm init --advertise-addr \$$(hostname -I | awk '{print \$$1}')"
+swarm-setup:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@eval "$$(ssh-agent -s)" && ssh-add ~/.ssh/id_rsa && \
+	scp -o StrictHostKeyChecking=no infra/swarm-scripts/init-cluster.sh infra/swarm-scripts/join-worker.sh azureuser@$(MANAGER_IP):/home/azureuser/ && \
+	ssh -o StrictHostKeyChecking=no -A azureuser@$(MANAGER_IP) "chmod +x init-cluster.sh join-worker.sh && ./init-cluster.sh" && \
+	TOKEN=$$(ssh -o StrictHostKeyChecking=no azureuser@$(MANAGER_IP) "docker swarm join-token -q worker") && \
+	ssh -o StrictHostKeyChecking=no -A azureuser@$(MANAGER_IP) "scp -o StrictHostKeyChecking=no join-worker.sh 10.0.1.5:/home/azureuser/ && ssh -o StrictHostKeyChecking=no 10.0.1.5 \"./join-worker.sh $$TOKEN 10.0.1.4\"" && \
+	ssh -o StrictHostKeyChecking=no -A azureuser@$(MANAGER_IP) "scp -o StrictHostKeyChecking=no join-worker.sh 10.0.1.6:/home/azureuser/ && ssh -o StrictHostKeyChecking=no 10.0.1.6 \"./join-worker.sh $$TOKEN 10.0.1.4\""
+	$(MAKE) verify-cluster
 
-# Fetch join tokens (run after manager init) - you can script this later
-get-tokens:
-	@echo "SSH into manager and run:"
-	@echo "  docker swarm join-token manager"
-	@echo "  docker swarm join-token worker"
+verify-cluster:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@ssh -o StrictHostKeyChecking=no azureuser@$(MANAGER_IP) "docker node ls"
 
-# Simple stop/start to save credits
 swarm-stop:
 	az vm deallocate --ids $$(az vm list --resource-group swarmfort-resources-v3 --query "[].id" -o tsv)
-	@echo "Waiting 15 seconds for deallocation..."
-	sleep 5
+	@sleep 5
 	az vm list -g swarmfort-resources-v3 -d --query "[].[name,powerState]" -o table
 
 swarm-start:
 	az vm start --ids $$(az vm list --resource-group swarmfort-resources-v3 --query "[].id" -o tsv)
-	@echo "Waiting 10s for VMs to start..."
-	sleep 8
+	@sleep 8
 	az vm list -g swarmfort-resources-v3 -d --query "[].[name,powerState]" -o table
+# $(MAKE) swarm-setup
+
+
+
+# আগের টার্গেটগুলো (infra-up, swarm-setup, verify-cluster, ...) অক্ষত
+
+.PHONY: setup-tls deploy-stack remove-stack
+
+# TLS সার্টিফিকেট ও সিক্রেট তৈরি
+setup-tls:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/swarm-scripts/generate-certs.sh azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "chmod +x /tmp/generate-certs.sh && /tmp/generate-certs.sh"
+
+setup-app-secrets:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@ssh azureuser@$(MANAGER_IP) "printf 'SecureDbPass123!' | docker secret create db_password - || true"
+	@ssh azureuser@$(MANAGER_IP) "printf 'SecureApiKey456!' | docker secret create api_key - || true"
+
+# সোর্ম স্ট্যাক ডিপ্লয়
+deploy-stack:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/docker/docker-stack.yml infra/docker/nginx.conf azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "docker stack deploy -c /tmp/docker-stack.yml swarmfort"
+
+# স্ট্যাক সরানো (ঐচ্ছিক)
+remove-stack:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	ssh azureuser@$(MANAGER_IP) "docker stack rm swarmfort"
+
+# সোর্ম স্ট্যাক এবং এনক্রিপশন/TLS ইন্টিগ্রেশন টেস্ট করা
+test-stack:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/tests/integration/test.sh azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "chmod +x /tmp/test.sh && /tmp/test.sh"

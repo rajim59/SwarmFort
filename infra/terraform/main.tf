@@ -8,12 +8,16 @@ terraform {
 }
 
 provider "azurerm" {
-  features {}
+  features {
+    virtual_machine {
+      skip_shutdown_and_force_delete = true
+    }
+  }
 }
 
 resource "azurerm_resource_group" "swarm_rg" {
-  name     = "swarmfort-resources-v3"
-  location = "malaysiawest"
+  name     = var.resource_group_name
+  location = var.location
 
   tags = {
     Environment = "Development"
@@ -21,7 +25,6 @@ resource "azurerm_resource_group" "swarm_rg" {
   }
 }
 
-# Virtual Network
 resource "azurerm_virtual_network" "swarm_vnet" {
   name                = "swarm-vnet"
   address_space       = ["10.0.0.0/16"]
@@ -36,7 +39,6 @@ resource "azurerm_subnet" "swarm_subnet" {
   address_prefixes     = ["10.0.1.0/24"]
 }
 
-# NSG with required Swarm ports
 resource "azurerm_network_security_group" "swarm_nsg" {
   name                = "swarm-nsg"
   location            = azurerm_resource_group.swarm_rg.location
@@ -50,7 +52,7 @@ resource "azurerm_network_security_group" "swarm_nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "22"
-    source_address_prefix      = "*"
+    source_address_prefix      = var.allowed_ssh_ip
     destination_address_prefix = "*"
   }
 
@@ -78,7 +80,6 @@ resource "azurerm_network_security_group" "swarm_nsg" {
     destination_address_prefix = "*"
   }
 
-  # Swarm management port (internal only)
   security_rule {
     name                       = "AllowSwarmMgmt"
     priority                   = 200
@@ -91,7 +92,6 @@ resource "azurerm_network_security_group" "swarm_nsg" {
     destination_address_prefix = "*"
   }
 
-  # Swarm node communication
   security_rule {
     name                       = "AllowSwarmNodeComm"
     priority                   = 210
@@ -104,7 +104,6 @@ resource "azurerm_network_security_group" "swarm_nsg" {
     destination_address_prefix = "*"
   }
 
-  # Overlay network (VXLAN)
   security_rule {
     name                       = "AllowSwarmOverlay"
     priority                   = 220
@@ -118,7 +117,6 @@ resource "azurerm_network_security_group" "swarm_nsg" {
   }
 }
 
-# ---------- Manager (public IP) ----------
 resource "azurerm_public_ip" "manager_pip" {
   name                = "manager-pip"
   location            = azurerm_resource_group.swarm_rg.location
@@ -136,7 +134,7 @@ resource "azurerm_network_interface" "manager_nic" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.swarm_subnet.id
     private_ip_address_allocation = "Static"
-    private_ip_address            = "10.0.1.4"    # <-- যোগ করা লাইন
+    private_ip_address            = "10.0.1.4"
     public_ip_address_id          = azurerm_public_ip.manager_pip.id
   }
 }
@@ -146,7 +144,6 @@ resource "azurerm_network_interface_security_group_association" "manager_assoc" 
   network_security_group_id = azurerm_network_security_group.swarm_nsg.id
 }
 
-# ---------- Workers (no public IP, now with static private IPs) ----------
 resource "azurerm_network_interface" "worker_nic" {
   count               = 2
   name                = "worker-${count.index + 1}-nic"
@@ -157,8 +154,7 @@ resource "azurerm_network_interface" "worker_nic" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.swarm_subnet.id
     private_ip_address_allocation = "Static"
-    private_ip_address            = "10.0.1.${count.index + 5}"   # .5 ও .6 হবে
-    # No public IP
+    private_ip_address            = "10.0.1.${count.index + 5}"
   }
 }
 
@@ -168,34 +164,29 @@ resource "azurerm_network_interface_security_group_association" "worker_assoc" {
   network_security_group_id = azurerm_network_security_group.swarm_nsg.id
 }
 
-# Cloud-init script: install Docker and prepare user
 locals {
   docker_install_script = <<-EOF
     #!/bin/bash
     set -e
-    # Update and install Docker
     curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker azureuser
-    # Enable Docker on boot
+    sudo usermod -aG docker ${var.admin_username}
     sudo systemctl enable docker
     sudo systemctl start docker
-    # Basic tuning
     echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
     sudo sysctl -p
   EOF
 }
 
-# ---------- VMs ----------
 resource "azurerm_linux_virtual_machine" "manager" {
   name                = "swarm-manager-1"
   resource_group_name = azurerm_resource_group.swarm_rg.name
   location            = azurerm_resource_group.swarm_rg.location
-  size                = "Standard_B2ats_v2"     # 2 vCPU, 4 GB RAM
-  admin_username      = "azureuser"
+  size                = var.manager_vm_size
+  admin_username      = var.admin_username
 
   admin_ssh_key {
-    username   = "azureuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    username   = var.admin_username
+    public_key = file(var.ssh_public_key_path)
   }
 
   os_disk {
@@ -222,12 +213,12 @@ resource "azurerm_linux_virtual_machine" "workers" {
   name                = "swarm-worker-${count.index + 1}"
   resource_group_name = azurerm_resource_group.swarm_rg.name
   location            = azurerm_resource_group.swarm_rg.location
-  size                = "Standard_B2ats_v2"
-  admin_username      = "azureuser"
+  size                = var.worker_vm_size
+  admin_username      = var.admin_username
 
   admin_ssh_key {
-    username   = "azureuser"
-    public_key = file("~/.ssh/id_rsa.pub")
+    username   = var.admin_username
+    public_key = file(var.ssh_public_key_path)
   }
 
   os_disk {
@@ -246,16 +237,13 @@ resource "azurerm_linux_virtual_machine" "workers" {
   network_interface_ids = [azurerm_network_interface.worker_nic[count.index].id]
   custom_data           = base64encode(local.docker_install_script)
 
-  depends_on = [azurerm_network_interface_security_group_association.worker_assoc]   # ✅ fixed line
+  depends_on = [azurerm_network_interface_security_group_association.worker_assoc]
 }
 
-# Outputs
 output "manager_public_ip" {
-  value       = azurerm_public_ip.manager_pip.ip_address
-  description = "Public IP of the Swarm manager"
+  value = azurerm_public_ip.manager_pip.ip_address
 }
 
 output "worker_private_ips" {
-  value       = azurerm_linux_virtual_machine.workers[*].private_ip_address
-  description = "Private IPs of worker nodes"
+  value = azurerm_linux_virtual_machine.workers[*].private_ip_address
 }

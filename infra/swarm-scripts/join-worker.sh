@@ -1,7 +1,6 @@
 #!/bin/bash
 set -e
 
-# Usage: join-worker.sh <worker-token> <manager-private-ip>
 TOKEN="$1"
 MANAGER_IP="$2"
 
@@ -10,7 +9,11 @@ if [ -z "$TOKEN" ] || [ -z "$MANAGER_IP" ]; then
     exit 1
 fi
 
-# Join as worker
-docker swarm join --token "$TOKEN" "$MANAGER_IP:2377"
+SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}')
 
-echo "Node joined the swarm successfully."
+if [ "$SWARM_STATE" = "active" ]; then
+    echo "Node is already part of a Swarm cluster."
+else
+    docker swarm join --token "$TOKEN" "$MANAGER_IP:2377"
+    echo "Node joined the swarm successfully."
+fi

@@ -14,7 +14,9 @@ make infra-up
 
 
 
-
+make swarm-start
+make deploy-stack
+make test-stack
 
 
 

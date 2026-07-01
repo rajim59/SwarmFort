@@ -1,19 +1,18 @@
 #!/bin/bash
 set -e
 
-# Get primary private IP (assuming one NIC, one subnet)
-PRIVATE_IP=$(hostname -I | awk '{print $1}')
-echo "Advertising Swarm on IP: $PRIVATE_IP"
+SWARM_STATE=$(docker info --format '{{.Swarm.LocalNodeState}}')
 
-docker swarm init --advertise-addr "$PRIVATE_IP"
+if [ "$SWARM_STATE" = "active" ]; then
+    echo "Swarm is already initialized on this node."
+else
+    PRIVATE_IP=$(hostname -I | awk '{print $1}')
+    echo "Advertising Swarm on IP: $PRIVATE_IP"
+    docker swarm init --advertise-addr "$PRIVATE_IP"
+fi
 
-# Create overlay network (if needed later)
-docker network create --driver overlay --attachable swarm-net || true
 
-# Output tokens
-echo "========================================"
-echo "Worker join command:"
-docker swarm join-token worker | grep "docker swarm join"
-echo "Manager join command:"
-docker swarm join-token manager | grep "docker swarm join"
-echo "========================================"
+if ! docker network ls | grep -q "swarm-net"; then
+    echo "Creating encrypted overlay network..."
+    docker network create --opt encrypted --driver overlay --attachable swarm-net
+fi
