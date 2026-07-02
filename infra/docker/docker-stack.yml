@@ -1,8 +1,21 @@
 version: "3.9"
 
 networks:
-  swarm-net:
-    external: true
+  frontend-net:
+    driver: overlay
+    driver_opts:
+      encrypted: "true"
+    attachable: false
+  backend-net:
+    driver: overlay
+    driver_opts:
+      encrypted: "true"
+    attachable: false
+  database-net:
+    driver: overlay
+    driver_opts:
+      encrypted: "true"
+    attachable: false
 
 secrets:
   site.crt:
@@ -19,24 +32,42 @@ configs:
     file: ./nginx.conf
 
 services:
+  nginx:
+    image: nginx:alpine
+    networks:
+      - frontend-net
+      - backend-net
+    ports:
+      - "80:80"
+      - "443:443"
+    configs:
+      - source: nginx_conf
+        target: /etc/nginx/conf.d/default.conf
+    secrets:
+      - site.crt
+      - site.key
+    deploy:
+      replicas: 2
+      resources:
+        limits: { cpus: "0.25", memory: 64M }
+      restart_policy:
+        condition: any
+
   api:
     image: hashicorp/http-echo:latest
     command: ["-text=Hello from SwarmFort API", "-listen=:8000"]
     networks:
-      - swarm-net
+      - backend-net
+      - database-net
     deploy:
       replicas: 3
-      update_config:
-        parallelism: 1
-        delay: 10s
-        failure_action: rollback
       resources:
-        limits: { cpus: "0.50", memory: 128M }
+        limits: { cpus: "0.50", memory: 256M }
 
   db:
     image: postgres:15-alpine
     networks:
-      - swarm-net
+      - database-net
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD_FILE: /run/secrets/db_password
@@ -57,7 +88,7 @@ services:
   redis:
     image: redis:7-alpine
     networks:
-      - swarm-net
+      - database-net
     command: ["sh", "-c", "redis-server --requirepass $$(cat /run/secrets/api_key)"]
     secrets:
       - api_key
@@ -70,26 +101,6 @@ services:
       interval: 5s
       timeout: 3s
       retries: 3
-
-  nginx:
-    image: nginx:alpine
-    networks:
-      - swarm-net
-    ports:
-      - "80:80"
-      - "443:443"
-    configs:
-      - source: nginx_conf
-        target: /etc/nginx/conf.d/default.conf
-    secrets:
-      - site.crt
-      - site.key
-    deploy:
-      replicas: 2
-      resources:
-        limits: { cpus: "0.25", memory: 64M }
-      restart_policy:
-        condition: any
 
 volumes:
   pgdata:

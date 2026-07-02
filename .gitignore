@@ -39,3 +39,7 @@ app/src/__pycache__/
 
 
 *.crt
+*.key
+*.crt
+.env
+secrets/

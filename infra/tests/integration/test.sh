@@ -4,7 +4,7 @@ set -e
 echo "--- Testing encrypted overlay network ---"
 echo "Checking encryption option on network swarm-net..."
 
-if docker network inspect swarm-net --format '{{json .Options}}' | grep -q "encrypted"; then
+if docker network inspect swarmfort_backend-net --format '{{json .Options}}' | grep -q "encrypted"; then
     echo "✓ Encryption enabled"
 else
     echo "✗ Encryption NOT enabled"

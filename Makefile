@@ -34,11 +34,10 @@ swarm-start:
 
 
 
-# আগের টার্গেটগুলো (infra-up, swarm-setup, verify-cluster, ...) অক্ষত
+# ------------------(infra-up, swarm-setup, verify-cluster, ...)
 
 .PHONY: setup-tls deploy-stack remove-stack
 
-# TLS সার্টিফিকেট ও সিক্রেট তৈরি
 setup-tls:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	scp infra/swarm-scripts/generate-certs.sh azureuser@$(MANAGER_IP):/tmp/
@@ -49,18 +48,18 @@ setup-app-secrets:
 	@ssh azureuser@$(MANAGER_IP) "printf 'SecureDbPass123!' | docker secret create db_password - || true"
 	@ssh azureuser@$(MANAGER_IP) "printf 'SecureApiKey456!' | docker secret create api_key - || true"
 
-# সোর্ম স্ট্যাক ডিপ্লয়
+
 deploy-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	scp infra/docker/docker-stack.yml infra/docker/nginx.conf azureuser@$(MANAGER_IP):/tmp/
 	ssh azureuser@$(MANAGER_IP) "docker stack deploy -c /tmp/docker-stack.yml swarmfort"
 
-# স্ট্যাক সরানো (ঐচ্ছিক)
+
 remove-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	ssh azureuser@$(MANAGER_IP) "docker stack rm swarmfort"
 
-# সোর্ম স্ট্যাক এবং এনক্রিপশন/TLS ইন্টিগ্রেশন টেস্ট করা
+
 test-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	scp infra/tests/integration/test.sh azureuser@$(MANAGER_IP):/tmp/
