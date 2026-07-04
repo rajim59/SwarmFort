@@ -46,6 +46,7 @@ jobs:
       actions: read
       id-token: write
       contents: write
+      packages: write
     uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.9.1
     with:
       image: rajim59/swarmfort-api
