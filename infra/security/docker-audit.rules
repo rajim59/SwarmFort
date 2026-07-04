@@ -1,0 +1,7 @@
+# Docker binary and socket monitoring
+-w /usr/bin/docker -p wa -k docker
+-w /usr/bin/dockerd -p wa -k docker
+-w /var/run/docker.sock -p wa -k docker_socket
+-w /etc/docker -p wa -k docker_config
+-w /var/lib/docker -p wa -k docker_data
+-w /etc/docker/daemon.json -p wa -k docker_daemon

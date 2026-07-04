@@ -1,0 +1,25 @@
+name: Nightly Security Scan
+
+on:
+  schedule:
+    - cron: '0 2 * * *'     # রাত 2AM
+
+jobs:
+  nightly-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Trivy full scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: myrepo/swarmfort-api:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+
+      - name: Upload Trivy results
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-scan
+          path: trivy-results.sarif

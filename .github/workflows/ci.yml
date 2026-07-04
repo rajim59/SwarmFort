@@ -1,0 +1,38 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        run: docker build -t myrepo/swarmfort-api:pr-test -f app/Dockerfile .
+
+      - name: Run Trivy scan (HIGH/CRITICAL only)
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: myrepo/swarmfort-api:pr-test
+          format: 'table'
+          exit-code: '1'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Generate SBOM
+        uses: anchore/sbom-action@v0
+        with:
+          image: myrepo/swarmfort-api:pr-test
+          format: spdx-json
+          output-file: sbom.spdx.json
+
+      - name: Upload SBOM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom
+          path: sbom.spdx.json
