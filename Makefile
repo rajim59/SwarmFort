@@ -102,17 +102,12 @@ test-structure: build-prod
 
 # ---------- Phase 4: Security Scanning (Requirment ) ----------
 
-# প্রোডাকশন বিল্ড (DCT সাপোর্টের জন্য provenance=false করা হয়েছে)
+# প্রোডাকশন ইমেজ বিল্ড করার স্ট্যান্ডার্ড টার্গেট
 build-prod:
-	@echo "Building Production Image (DCT Compatible)..."
-	docker build --provenance=false --no-cache -t rajim59/swarmfort-api:v1.0.2 -f infra/docker/Dockerfile.prod .
+	@echo "Building Clean Production Image..."
+	docker build --no-cache -t rajim59/swarmfort-api:latest -f infra/docker/Dockerfile.prod .
 
-# DCT এনফোর্সমেন্ট দিয়ে সরাসরি পুশ ও সাইন
-dct-push:
-	@echo "Signing and Pushing image with DCT..."
-	DOCKER_CONTENT_TRUST=1 docker push rajim59/swarmfort-api:v1.0.2
-
-# DCT এনফোর্সমেন্ট দিয়ে পুল
-dct-pull:
-	@echo "Pulling with DCT enforcement..."
-	DOCKER_CONTENT_TRUST=1 docker pull rajim59/swarmfort-api:v1.0.2
+# ডকার হাবে সাধারণ ও নিরাপদ পুশ টার্গেট
+push-prod: build-prod
+	@echo "Pushing Production Image to Docker Hub..."
+	docker push rajim59/swarmfort-api:latest
