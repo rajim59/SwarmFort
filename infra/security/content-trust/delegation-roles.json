@@ -1,0 +1,24 @@
+{
+  "delegations": [
+    {
+      "name": "releaser",
+      "paths": ["*"],
+      "keys": [
+        {
+          "id": "RELEASER_KEY_ID_PLACEHOLDER",
+          "key": "RELEASER_PUBLIC_KEY_PLACEHOLDER"
+        }
+      ]
+    },
+    {
+      "name": "signer",
+      "paths": ["swarmfort-api/*"],
+      "keys": [
+        {
+          "id": "SIGNER_KEY_ID_PLACEHOLDER",
+          "key": "SIGNER_PUBLIC_KEY_PLACEHOLDER"
+        }
+      ]
+    }
+  ]
+}

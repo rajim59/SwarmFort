@@ -98,3 +98,15 @@ test-structure: build-prod
 	  gcr.io/gcp-runtimes/container-structure-test:latest test \
 	  --image myrepo/swarmfort-api:latest \
 	  --config /tests/container-structure-tests.yml
+
+
+# ---------- Phase 4: Security Scanning (Requirment ) ----------
+
+# DCT এনফোর্সমেন্ট (DOCKER_CONTENT_TRUST=1 দিয়ে পুল)
+dct-pull:
+	@echo "Pulling with DCT enforcement..."
+	DOCKER_CONTENT_TRUST=1 docker pull myrepo/swarmfort-api:latest
+
+# DCT সাইনিং (release.yml-এ স্বয়ংক্রিয় হবে, ম্যানুয়াল টেস্টের জন্য)
+dct-sign:
+	docker trust sign myrepo/swarmfort-api:latest
