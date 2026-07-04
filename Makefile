@@ -111,3 +111,17 @@ build-prod:
 push-prod: build-prod
 	@echo "Pushing Production Image to Docker Hub..."
 	docker push rajim59/swarmfort-api:latest
+
+# বেস ইমেজকে মাল্টি-আর্ক হিসেবে বিল্ড ও পুশ করা
+build-base-multi:
+	@echo "Creating builder instance..."
+	docker buildx create --use --name multi-builder || true
+	@echo "Building and Pushing Multi-Arch Base Image..."
+	docker buildx build --platform linux/amd64,linux/arm64 -t rajim59/python-hardened:latest -f infra/docker/Dockerfile.base --push .
+
+
+gen-cosign-keys:
+	@echo "Generating Cosign Key Pair using Docker with Host User Permissions..."
+	docker run --rm -it -v $(PWD):/keys --user $(shell id -u):$(shell id -g) gcr.io/projectsigstore/cosign:v2.4.1 generate-key-pair --output-key-prefix /keys/cosign
+
+# gfhfh 

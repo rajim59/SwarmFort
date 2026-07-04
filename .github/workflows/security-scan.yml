@@ -2,7 +2,7 @@ name: Nightly Security Scan
 
 on:
   schedule:
-    - cron: '0 2 * * *'     # রাত 2AM
+    - cron: '0 2 * * *'     # Night 2AM
 
 jobs:
   nightly-scan:
