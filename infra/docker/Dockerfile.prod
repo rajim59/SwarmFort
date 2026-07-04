@@ -3,21 +3,28 @@ FROM myrepo/python-hardened:latest AS base
 FROM base AS builder
 USER root
 COPY app/requirements.txt /tmp/requirements.txt
+
+# mkdir -p /root/.local যুক্ত করা হয়েছে যেন requirements.txt খালি থাকলেও find কমান্ড ফেইল না করে
 RUN apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev && \
+    mkdir -p /root/.local && \
     pip install --user --no-cache-dir -r /tmp/requirements.txt && \
-    find /home/appuser/.local -type d -name __pycache__ -exec rm -rf {} + && \
-    find /home/appuser/.local -type f -name '*.pyc' -delete && \
+    find /root/.local -type d -name __pycache__ -exec rm -rf {} + || true && \
+    find /root/.local -type f -name '*.pyc' -delete || true && \
     apk del .build-deps
 
 FROM base
 USER appuser
 WORKDIR /app
 
-COPY --chown=appuser:appgroup --from=builder /home/appuser/.local /home/appuser/.local
+# /root/.local থেকে সরাসরি কপি করা হচ্ছে
+COPY --chown=appuser:appgroup --from=builder /root/.local /home/appuser/.local
 COPY --chown=appuser:appgroup app/src/ ./src/
 
 ENV PATH="/home/appuser/.local/bin:$PATH"
 ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
+
+HEALTHCHECK --interval=15s --timeout=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:8000/health || exit 1
 
 CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]
