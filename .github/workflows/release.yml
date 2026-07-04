@@ -1,0 +1,31 @@
+name: Release (Sign & SLSA)
+
+on:
+  workflow_dispatch:        # ম্যানুয়াল ট্রিগার
+
+jobs:
+  sign-and-provenance:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Build multi-arch image and push
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -t myrepo/swarmfort-api:latest --push -f app/Dockerfile .
+
+      - name: Sign with Cosign
+        run: |
+          cosign sign --key env://COSIGN_PRIVATE_KEY myrepo/swarmfort-api:latest
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+
+      - name: Generate SLSA provenance
+        uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v1.9.1
+        with:
+          image: myrepo/swarmfort-api:latest
+          digest: ${{ needs.build.outputs.digest }}
+        # SLSA প্রোভেনেন্স আর্টিফ্যাক্ট হিসেবে আপলোড হবে
