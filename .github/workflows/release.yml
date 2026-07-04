@@ -9,12 +9,15 @@ jobs:
     outputs:
       digest: ${{ steps.build.outputs.digest }}
     steps:
-      # Node.js 24 সাপোর্টেড লেটেস্ট ভার্সনগুলো ব্যবহার করা হলো
       - name: Checkout code
         uses: actions/checkout@v5  
 
       - name: Set up Cosign
         uses: sigstore/cosign-installer@v3
+
+      # 🚀 নতুন স্টেপ: গিটহাবকে arm64 সাপোর্ট দেওয়ার জন্য QEMU যুক্ত করা হলো
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4  
