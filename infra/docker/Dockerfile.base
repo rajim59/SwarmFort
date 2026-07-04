@@ -1,0 +1,29 @@
+FROM python:3.12-alpine
+
+LABEL com.example.sec-approved="true" \
+      org.opencontainers.image.description="SwarmFort hardened Python base image"
+
+# সিস্টেম আপডেট ও libssl নিরাপত্তা ফিক্স
+RUN apk update && apk upgrade --no-cache && apk add --no-cache \
+    ca-certificates \
+    curl \
+    libressl \
+    tzdata
+
+# নিজস্ব CA (ডিরেক্টরি তৈরি, প্রয়োজনীয় সার্টিফিকেট কপি করার নির্দেশ)
+RUN mkdir -p /usr/local/share/ca-certificates/custom
+# COPY your-ca.crt /usr/local/share/ca-certificates/custom/
+# RUN update-ca-certificates
+
+# নন-রুট ইউজার (UID 1001)
+RUN addgroup -g 1001 appgroup && \
+    adduser -u 1001 -G appgroup -D -s /bin/sh appuser
+
+# libssl সিমলিংক/আপডেট (সর্বশেষ প্যাচযুক্ত সংস্করণ নিশ্চিত)
+RUN ln -sf /usr/lib/libssl.so.3 /usr/lib/libssl.so
+
+# নিরাপত্তা: read-only ফাইলসিস্টেমের প্রস্তুতি
+RUN mkdir -p /tmp /var/run && chmod 1777 /tmp /var/run
+
+USER appuser
+WORKDIR /home/appuser

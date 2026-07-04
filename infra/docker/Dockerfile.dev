@@ -1,0 +1,33 @@
+FROM myrepo/python-hardened:latest
+
+USER root
+
+# ডেভ টুলস: হট রিলোড, লিন্টার, ডিবাগার
+RUN apk add --no-cache \
+    curl \
+    git \
+    py3-pip \
+    && pip install --no-cache-dir \
+    uvicorn[standard] \
+    watchdog \
+    pyflakes \
+    black \
+    debugpy
+
+# অ্যাপ ইউজারে ফেরা
+USER appuser
+WORKDIR /app
+
+# পাথগুলোতে app/ প্রিফিক্স যুক্ত করা হয়েছে
+COPY --chown=appuser:appgroup app/requirements.txt .
+RUN pip install --user --no-cache-dir -r requirements.txt
+
+# পাথগুলোতে app/ প্রিফিক্স যুক্ত করা হয়েছে
+COPY --chown=appuser:appgroup app/src/ ./src/
+
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 8000 5678
+
+# ডিবাগ মোডে হট রিলোড সহ uvicorn
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/src"]

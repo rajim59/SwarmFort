@@ -1,0 +1,23 @@
+FROM myrepo/python-hardened:latest AS base
+
+FROM base AS builder
+USER root
+COPY app/requirements.txt /tmp/requirements.txt
+RUN apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev && \
+    pip install --user --no-cache-dir -r /tmp/requirements.txt && \
+    find /home/appuser/.local -type d -name __pycache__ -exec rm -rf {} + && \
+    find /home/appuser/.local -type f -name '*.pyc' -delete && \
+    apk del .build-deps
+
+FROM base
+USER appuser
+WORKDIR /app
+
+COPY --chown=appuser:appgroup --from=builder /home/appuser/.local /home/appuser/.local
+COPY --chown=appuser:appgroup app/src/ ./src/
+
+ENV PATH="/home/appuser/.local/bin:$PATH"
+ENV PYTHONUNBUFFERED=1
+EXPOSE 8000
+
+CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000"]

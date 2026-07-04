@@ -12,7 +12,7 @@ az policy assignment list --query "[?contains(displayName, 'Allowed')].parameter
 
 make infra-up
 
-
+make swar
 
 make swarm-start
 make deploy-stack
