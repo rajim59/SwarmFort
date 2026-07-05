@@ -172,3 +172,14 @@ verify-monitoring:
 	@echo "\n[4] Validating Loki Health..."
 	@ssh azureuser@$(MANAGER_IP) "curl -s http://127.0.0.1:3100/ready | grep -q 'ready' && echo '✅ SUCCESS: Loki is READY' || echo '❌ FAILED: Loki not ready'"
 	@echo "=========================================================="
+
+
+
+# ---------- Phase 7: Operational Excellence ----------
+setup-dr-automation:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@echo "Deploying operational excellence scripts to Swarm Manager..."
+	tar -czf /tmp/scripts.tar.gz -C infra swarm-scripts/ network/
+	scp /tmp/scripts.tar.gz azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "cd /home/azureuser && tar -xzf /tmp/scripts.tar.gz && chmod +x swarm-scripts/*.sh network/*.sh"
+	ssh azureuser@$(MANAGER_IP) "bash /home/azureuser/swarm-scripts/cleanup-cron-setup.sh"
