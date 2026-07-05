@@ -1,0 +1,35 @@
+{
+  "title": "API RED Dashboard",
+  "panels": [
+    {
+      "title": "Request Rate",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[5m])",
+          "legendFormat": "requests/sec"
+        }
+      ],
+      "type": "graph"
+    },
+    {
+      "title": "Error Rate",
+      "targets": [
+        {
+          "expr": "rate(http_requests_total{status=~\"5..\"}[5m])",
+          "legendFormat": "errors/sec"
+        }
+      ],
+      "type": "graph"
+    },
+    {
+      "title": "Request Duration",
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95 latency"
+        }
+      ],
+      "type": "graph"
+    }
+  ]
+}

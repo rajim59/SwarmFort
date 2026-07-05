@@ -1,0 +1,49 @@
+{
+  "title": "Resource Usage",
+  "panels": [
+    {
+      "title": "CPU Usage per Container",
+      "targets": [
+        {
+          "expr": "rate(container_cpu_usage_seconds_total{name=~\".+\"}[5m])",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "type": "graph"
+    },
+    {
+      "title": "Memory Usage per Container",
+      "targets": [
+        {
+          "expr": "container_memory_usage_bytes{name=~\".+\"}",
+          "legendFormat": "{{name}}"
+        }
+      ],
+      "type": "graph"
+    },
+    {
+      "title": "Disk I/O",
+      "targets": [
+        {
+          "expr": "rate(node_disk_io_time_seconds_total[5m])",
+          "legendFormat": "{{device}}"
+        }
+      ],
+      "type": "graph"
+    },
+    {
+      "title": "Network Traffic",
+      "targets": [
+        {
+          "expr": "rate(node_network_receive_bytes_total[5m])",
+          "legendFormat": "recv {{device}}"
+        },
+        {
+          "expr": "rate(node_network_transmit_bytes_total[5m])",
+          "legendFormat": "trans {{device}}"
+        }
+      ],
+      "type": "graph"
+    }
+  ]
+}
