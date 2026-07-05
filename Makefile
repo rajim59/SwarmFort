@@ -124,4 +124,3 @@ gen-cosign-keys:
 	@echo "Generating Cosign Key Pair using Docker with Host User Permissions..."
 	docker run --rm -it -v $(PWD):/keys --user $(shell id -u):$(shell id -g) gcr.io/projectsigstore/cosign:v2.4.1 generate-key-pair --output-key-prefix /keys/cosign
 
-# gfhfh 
