@@ -1,7 +1,17 @@
 groups:
   - name: swarmfort_alerts
     rules:
-      # 1. OOMKill Alert
+      # 1. High API Latency Alert (Phase 6 New Requirement)
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency detected"
+          description: "API p95 latency is above 1 second for the last 5 minutes."
+
+      # 2. OOMKill Alert
       - alert: OOMKillDetected
         expr: increase(container_oom_events_total{name=~"swarmfort.+"}[5m]) > 0
         labels:
@@ -10,7 +20,7 @@ groups:
           summary: "OOM Kill occurred"
           description: "Container {{ $labels.name }} has been OOMKilled due to memory limits."
 
-      # 2. High CPU Usage Alert (> 80% for 5 minutes)
+      # 3. High CPU Usage Alert (> 80% for 5 minutes)
       - alert: HighCPUUsage
         expr: sum(rate(container_cpu_usage_seconds_total{name=~"swarmfort.+"}[5m])) by (name) > 0.80
         for: 5m
@@ -20,7 +30,7 @@ groups:
           summary: "High CPU Usage Detected"
           description: "Container {{ $labels.name }} is using more than 80% CPU."
 
-      # 3. High Memory Usage Alert (> 85% of limit for 5 minutes)
+      # 4. High Memory Usage Alert (> 85% of limit for 5 minutes)
       - alert: HighMemoryUsage
         expr: container_memory_usage_bytes{name=~"swarmfort.+"} / container_spec_memory_limit_bytes{name=~"swarmfort.+"} > 0.85
         for: 5m
@@ -30,17 +40,17 @@ groups:
           summary: "High Memory Usage Detected"
           description: "Container {{ $labels.name }} is using more than 85% of its allocated memory."
 
-      # 4. Disk Full Alert (< 10% available space)
+      # 5. Disk Full Alert (< 10% available space on root)
       - alert: DiskFull
-        expr: (node_filesystem_avail_bytes / node_filesystem_size_bytes) < 0.10
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.10
         for: 5m
         labels:
           severity: critical
         annotations:
           summary: "Disk space is almost full"
-          description: "Host {{ $labels.instance }} has less than 10% disk space available."
+          description: "Host {{ $labels.instance }} root filesystem has less than 10% space available."
 
-      # 5. Service Down Alert (Target unreachable for 1 minute)
+      # 6. Service Down Alert (Target unreachable for 1 minute)
       - alert: ServiceDown
         expr: up == 0
         for: 1m
