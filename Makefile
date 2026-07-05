@@ -64,7 +64,7 @@ test-stack:
 	scp infra/tests/integration/test.sh azureuser@$(MANAGER_IP):/tmp/
 	ssh azureuser@$(MANAGER_IP) "chmod +x /tmp/test.sh && /tmp/test.sh"
 
-# ---------- Phase 2: Image Build & Security (Requirement 5-8) ----------
+# ---------- Phase 3: Image Build & Security (Requirement 5-8) ----------
 build-base:
 	docker build -t myrepo/python-hardened:latest -f infra/docker/Dockerfile.base .
 
@@ -124,3 +124,20 @@ gen-cosign-keys:
 	@echo "Generating Cosign Key Pair using Docker with Host User Permissions..."
 	docker run --rm -it -v $(PWD):/keys --user $(shell id -u):$(shell id -g) gcr.io/projectsigstore/cosign:v2.4.1 generate-key-pair --output-key-prefix /keys/cosign
 
+
+
+# ---------- Phase 5: OOM Score Adjustment ----------
+
+oom-adjust:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	ssh azureuser@$(MANAGER_IP) "\
+		docker service update --oom-score-adj -500 swarmfort_api && \
+		docker service update --oom-score-adj -300 swarmfort_db && \
+		docker service update --oom-score-adj -200 swarmfort_redis && \
+		docker service update --oom-score-adj 0 swarmfort_nginx"
+
+verify-resources:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/resources/cgroups-v2-check.sh azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "bash /tmp/cgroups-v2-check.sh"
+	ssh azureuser@$(MANAGER_IP) "docker service inspect swarmfort_api --format '{{.Spec.TaskTemplate.Resources.Limits}}'"
