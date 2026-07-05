@@ -14,6 +14,10 @@ networks:
     driver_opts:
       encrypted: "true"
     attachable: false
+  monitoring-net:
+    driver: overlay
+    driver_opts:
+      encrypted: "true"
 
 secrets:
   site.crt:
@@ -28,8 +32,17 @@ secrets:
 configs:
   nginx_conf:
     file: ./nginx.conf
+  prometheus_config:
+    file: ../monitoring/prometheus/prometheus.yml
+  alert_rules:
+    file: ../monitoring/prometheus/alert-rules.yml
+  loki_config:
+    file: ../monitoring/loki/loki-config.yml
 
 services:
+  # ==========================================
+  # APPLICATION SERVICES (Baseline)
+  # ==========================================
   nginx:
     image: nginx:alpine
     networks:
@@ -53,16 +66,30 @@ services:
         condition: any
 
   api:
-    image: hashicorp/http-echo:latest
-    command: ["-text=Hello from SwarmFort API", "-listen=:8000"]
+    image: rajim59/swarmfort-api:latest
     networks:
       - backend-net
       - database-net
+    environment:
+      - DATABASE_URL=postgresql://user:$$(cat /run/secrets/db_password)@db:5432/mydb
+      - REDIS_URL=redis:6379
+    secrets:
+      - db_password
+      - api_key
     deploy:
       replicas: 3
+      update_config:
+        parallelism: 1
+        delay: 10s
+        failure_action: rollback
       resources:
         limits: { cpus: "1.00", memory: 512M }
         reservations: { cpus: "0.50", memory: 256M }
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   db:
     image: postgres:15-alpine
@@ -104,5 +131,123 @@ services:
       timeout: 3s
       retries: 3
 
+  # ==========================================
+  # MONITORING SERVICES (Phase 6)
+  # ==========================================
+  prometheus:
+    image: prom/prometheus:latest
+    networks:
+      - monitoring-net
+    ports:
+      - "9090:9090"
+    configs:
+      - source: prometheus_config
+        target: /etc/prometheus/prometheus.yml
+      - source: alert_rules
+        target: /etc/prometheus/alert-rules.yml
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    volumes:
+      - prometheus_data:/prometheus
+    deploy:
+      replicas: 1
+      resources:
+        limits: { memory: 512M }
+
+  grafana:
+    image: grafana/grafana:latest
+    networks:
+      - monitoring-net
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    deploy:
+      replicas: 1
+      resources:
+        limits: { memory: 256M }
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    networks:
+      - monitoring-net
+    ports:
+      - "8080:8080"
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    deploy:
+      mode: global
+      resources:
+        limits: { memory: 128M }
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    networks:
+      - monitoring-net
+    ports:
+      - "9100:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+    deploy:
+      mode: global
+      resources:
+        limits: { memory: 64M }
+
+  loki:
+    image: grafana/loki:2.9.3
+    networks:
+      - monitoring-net
+    ports:
+      - "3100:3100"
+    configs:
+      - source: loki_config
+        target: /etc/loki/loki-config.yml
+    command: -config.file=/etc/loki/loki-config.yml
+    volumes:
+      - loki_data:/loki
+    deploy:
+      replicas: 1
+      resources:
+        limits: { memory: 256M }
+
+  docker-events-exporter:
+    image: docker:cli
+    networks:
+      - monitoring-net
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache curl && \
+        while true; do
+          docker events --format '{{json .}}' | while read -r event; do
+            TS=$$(date +%s%N)
+            curl -s -X POST http://loki:3100/loki/api/v1/push \
+              -H "Content-Type: application/json" \
+              -d "{\"streams\":[{\"stream\":{\"job\":\"docker-events\"},\"values\":[[\"$$TS\",\"$$event\"]]}]}" > /dev/null 2>&1 || true
+          done
+          sleep 5
+        done
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      mode: global
+      resources:
+        limits: { memory: 64M }
+
 volumes:
   pgdata:
+  prometheus_data:
+  grafana_data:
+  loki_data:

@@ -141,3 +141,34 @@ verify-resources:
 	scp infra/resources/cgroups-v2-check.sh azureuser@$(MANAGER_IP):/tmp/
 	ssh azureuser@$(MANAGER_IP) "bash /tmp/cgroups-v2-check.sh"
 	ssh azureuser@$(MANAGER_IP) "docker service inspect swarmfort_api --format '{{.Spec.TaskTemplate.Resources.Limits}}'"
+
+
+
+# ---------- Phase 6: Monitoring Stack Deployment ----------
+deploy-monitoring-stack:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@echo "Packaging infrastructure files with monitoring..."
+	tar -czf /tmp/infra.tar.gz infra/
+	scp /tmp/infra.tar.gz azureuser@$(MANAGER_IP):/tmp/
+	@echo "Deploying SwarmFort + Monitoring Stack..."
+	ssh azureuser@$(MANAGER_IP) "cd /tmp && tar -xzf infra.tar.gz && cd infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
+
+verify-monitoring:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@echo "=========================================================="
+	@echo " 🔍 ADVANCED API-LEVEL VERIFICATION (PHASE 6) "
+	@echo "=========================================================="
+	
+	@echo "\n[1] Verifying Swarm Services..."
+	@sleep 15
+	@ssh azureuser@$(MANAGER_IP) "docker service ls | grep swarmfort_"
+	
+	@echo "\n[2] Validating Prometheus Targets (Data Scraping)..."
+	@ssh azureuser@$(MANAGER_IP) "curl -s http://127.0.0.1:9090/api/v1/targets | grep -q '\"health\":\"up\"' && echo '✅ SUCCESS: Prometheus is active' || echo '❌ FAILED: Targets unreachable'"
+	
+	@echo "\n[3] Validating Alerting Rules Engine..."
+	@ssh azureuser@$(MANAGER_IP) "curl -s http://127.0.0.1:9090/api/v1/rules | grep -q 'OOMKillDetected' && echo '✅ SUCCESS: Alert rules loaded' || echo '❌ FAILED: Rules missing'"
+	
+	@echo "\n[4] Validating Loki Health..."
+	@ssh azureuser@$(MANAGER_IP) "curl -s http://127.0.0.1:3100/ready | grep -q 'ready' && echo '✅ SUCCESS: Loki is READY' || echo '❌ FAILED: Loki not ready'"
+	@echo "=========================================================="
