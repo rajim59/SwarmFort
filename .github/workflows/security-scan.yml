@@ -2,21 +2,27 @@ name: Nightly Security Scan
 
 on:
   schedule:
-    - cron: '0 2 * * *'     # Night 2AM
+    - cron: '0 2 * * *'     # প্রতিদিন রাত ২টায় রান করবে
+  workflow_dispatch:        # টেস্টিংয়ের জন্য ম্যানুয়াল ট্রিগার যুক্ত করা হলো
 
 jobs:
   nightly-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v5
 
       - name: Run Trivy full scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: myrepo/swarmfort-api:latest
+          image-ref: 'rajim59/swarmfort-api:latest' # 👈 এখানে আপনার আসল ইউজারনেম বসানো হয়েছে
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
+        env:
+          # ডকার হাবের রেট লিমিট বা প্রাইভেট ইমেজের জন্য ক্রেডেনশিয়াল পাস করা হলো
+          TRIVY_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          TRIVY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Upload Trivy results
         uses: actions/upload-artifact@v4
