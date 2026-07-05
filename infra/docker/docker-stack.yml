@@ -64,6 +64,11 @@ services:
         reservations: { cpus: "0.25", memory: 64M }
       restart_policy:
         condition: any
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
 
   api:
     image: rajim59/swarmfort-api:latest
