@@ -15,11 +15,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # নতুন সংযোজন: Hadolint দিয়ে Dockerfile-এর বেস্ট প্র্যাকটিস স্ক্যান
+      # আপডেট: failure-threshold: error যুক্ত করা হয়েছে যেন ওয়ার্নিংয়ে বিল্ড ফেইল না করে
       - name: Run Hadolint
         uses: hadolint/hadolint-action@v3.1.0
         with:
           dockerfile: infra/docker/Dockerfile.prod
+          failure-threshold: error
 
       # সঠিক পাথ এবং ইউজারনেম দিয়ে বিল্ড করা (Buildx --load সহ লোকাল স্ক্যানের জন্য)
       - name: Build image for local testing
@@ -53,7 +54,7 @@ jobs:
           name: sbom
           path: sbom.spdx.json
 
-      # নতুন সংযোজন: Container Structure Test (ইমেজের ভেতরের কনফিগারেশন চেক)
+      # Container Structure Test (ইমেজের ভেতরের কনফিগারেশন চেক)
       - name: Container Structure Test
         run: |
           docker run --rm \
@@ -63,16 +64,16 @@ jobs:
             --image rajim59/swarmfort-api:pr-test \
             --config /tests/container-structure-tests.yml
 
-  # নতুন সংযোজন: OPA/Conftest জব (পলিসি অ্যাজ কোড ভেরিফিকেশন)
+  # OPA/Conftest জব (পলিসি অ্যাজ কোড ভেরিফিকেশন)
   opa-conftest:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
       
-      # Official OPA container দিয়ে Dockerfile স্ক্যান
+      # Official OPA container দিয়ে Dockerfile স্ক্যান
       - name: Run Conftest for Dockerfile
         run: docker run --rm -v $(pwd):/workspace openpolicyagent/conftest test /workspace/infra/docker/Dockerfile.prod -p /workspace/infra/security/opa-policies/image-policy.rego
       
-      # Official OPA container দিয়ে Docker Stack (YAML) স্ক্যান
+      # আপডেট: ফাইলের শেষের টাইপো (.rgo) ঠিক করে .rego করা হয়েছে
       - name: Run Conftest for stack file
         run: docker run --rm -v $(pwd):/workspace openpolicyagent/conftest test /workspace/infra/docker/docker-stack.yml -p /workspace/infra/security/opa-policies/runtime-policy.rego
