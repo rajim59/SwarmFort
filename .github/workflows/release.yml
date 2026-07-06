@@ -76,12 +76,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v5
         
-      - name: Deploy to Azure Swarm
+      - name: Deploy to Azure Swarm (Single Pipe Stream)
         run: |
           mkdir -p ~/.ssh
           echo "${{ secrets.SWARM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          tar -czf infra.tar.gz infra/
-          scp -o StrictHostKeyChecking=no infra.tar.gz azureuser@${{ secrets.MANAGER_IP }}:/tmp/
-          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 azureuser@${{ secrets.MANAGER_IP }} \
-            "cd /tmp && tar -xzf infra.tar.gz && cd infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
+          
+          # SCP বাদ দিয়ে সরাসরি SSH-এর মাধ্যমে মেমোরি স্ট্রিম করে ফাইল পাঠানো এবং ডেপ্লয় করা
+          tar -czf - infra/ | ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 -o TCPKeepAlive=yes azureuser@${{ secrets.MANAGER_IP }} \
+            "cd /tmp && tar -xzf - && cd infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
