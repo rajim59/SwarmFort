@@ -1,19 +1,16 @@
 name: Release (Sign & Deploy)
 
 on:
-  workflow_dispatch:        # ম্যানুয়াল ট্রিগার
+  workflow_dispatch:
 
 jobs:
-  # =================================================================
-  # JOB 1: মাল্টি-আর্ক বিল্ড, ডকার হাব পুশ, Cosign এবং DCT সাইনিং
-  # =================================================================
   build-and-sign:
     runs-on: ubuntu-latest
     outputs:
-      digest: ${{ steps.build.outputs.digest }} # SLSA জবের জন্য ডাইজেস্ট এক্সপোর্ট
+      digest: ${{ steps.build.outputs.digest }}
     permissions:
       contents: read
-      id-token: write # Cosign সাইনিংয়ের জন্য প্রয়োজনীয়
+      id-token: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v5  
@@ -21,7 +18,6 @@ jobs:
       - name: Set up Cosign
         uses: sigstore/cosign-installer@v3
 
-      # মাল্টি-আর্ক বিল্ডের জন্য QEMU এমুলেটর
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
 
@@ -34,7 +30,6 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # বিল্ড এবং ডাইজেস্ট এক্সট্রাকশন
       - name: Build multi-arch image and push
         id: build
         uses: docker/build-push-action@v6  
@@ -45,7 +40,6 @@ jobs:
           push: true
           tags: rajim59/swarmfort-api:latest
 
-      # সিগনেচার এনফোর্সমেন্ট (Cosign)
       - name: Sign with Cosign
         run: |
           cosign sign --key env://COSIGN_PRIVATE_KEY --yes rajim59/swarmfort-api:latest@${{ steps.build.outputs.digest }}
@@ -53,17 +47,13 @@ jobs:
           COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
           COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
 
-      # নতুন সংযোজন: DCT (Docker Content Trust) সাইনিং
-      - name: DCT Sign (if notary key present)
+      - name: DCT Sign
         run: |
           export DOCKER_CONTENT_TRUST=1
-          docker trust sign rajim59/swarmfort-api:latest || echo "DCT signing skipped (key not available)"
+          docker trust sign rajim59/swarmfort-api:latest || echo "DCT signing skipped"
         env:
           DOCKER_CONTENT_TRUST_REPOSITORY_PASSPHRASE: ${{ secrets.DCT_PASSPHRASE }}
 
-  # =================================================================
-  # JOB 2: SLSA প্রোভেনেন্স জেনারেশন (Reusable Workflow)
-  # =================================================================
   generate-provenance:
     needs: build-and-sign
     permissions:
@@ -79,9 +69,6 @@ jobs:
       registry-username: ${{ secrets.DOCKERHUB_USERNAME }}
       registry-password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-  # =================================================================
-  # JOB 3: Azure Swarm-এ রিমোট ডেপ্লয়মেন্ট (নতুন ফেজ ৮ সংযোজন)
-  # =================================================================
   deploy-to-swarm:
     needs: [build-and-sign, generate-provenance]
     runs-on: ubuntu-latest
@@ -94,11 +81,7 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SWARM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          
-          # ইনফ্রা ফাইলগুলো জিপ করে SCP দিয়ে সার্ভারে পাঠানো
           tar -czf infra.tar.gz infra/
           scp -o StrictHostKeyChecking=no infra.tar.gz azureuser@${{ secrets.MANAGER_IP }}:/tmp/
-          
-          # সার্ভারে SSH করে ঢুকে আনজিপ করা এবং স্ট্যাক ডেপ্লয় করা
-          ssh -o StrictHostKeyChecking=no azureuser@${{ secrets.MANAGER_IP }} \
+          ssh -o StrictHostKeyChecking=no -o ServerAliveInterval=60 -o ServerAliveCountMax=10 azureuser@${{ secrets.MANAGER_IP }} \
             "cd /tmp && tar -xzf infra.tar.gz && cd infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
