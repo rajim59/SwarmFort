@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ============================================================
-# buildx মাল্টি-আর্কিটেকচার বিল্ডার সেটআপ
+# buildx multiarch builder initialization script 
 # ============================================================
 
 BUILDER_NAME="${BUILDER_NAME:-multiarch-builder}"

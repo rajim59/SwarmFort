@@ -15,7 +15,7 @@ scrape_configs:
       - targets: ['api:8000']
     metrics_path: '/metrics'
 
-  # Swarm DNS Service Discovery (প্রতিটি নোড থেকে ডেটা স্ক্র্যাপ করার জন্য)
+  # Swarm DNS Service Discovery
   - job_name: 'cadvisor'
     dns_sd_configs:
       - names:

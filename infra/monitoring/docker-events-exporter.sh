@@ -26,5 +26,5 @@ while true; do
 EOF
 )" > /dev/null 2>&1 || echo "Failed to send event" >&2
   done
-  sleep 5   # পুনরায় চালু হলে
+  sleep 5   
 done
