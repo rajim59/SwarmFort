@@ -183,3 +183,6 @@ setup-dr-automation:
 	scp /tmp/scripts.tar.gz azureuser@$(MANAGER_IP):/tmp/
 	ssh azureuser@$(MANAGER_IP) "cd /home/azureuser && tar -xzf /tmp/scripts.tar.gz && chmod +x swarm-scripts/*.sh network/*.sh"
 	ssh azureuser@$(MANAGER_IP) "bash /home/azureuser/swarm-scripts/cleanup-cron-setup.sh"
+
+
+# 333
