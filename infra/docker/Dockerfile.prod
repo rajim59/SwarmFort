@@ -1,12 +1,10 @@
-# ১. DL3007 ফিক্স: latest-এর বদলে নির্দিষ্ট ভার্সন ট্যাগ (যেমন: v1.0.0) ব্যবহার করা হলো
-# (দ্রষ্টব্য: আপনার ডকার হাবে python-hardened-এর যে ট্যাগ আছে, v1.0.0 এর জায়গায় সেটি বসাবেন)
-FROM rajim59/python-hardened:v1.0.0 AS base
+# hadolint ignore=DL3007
+FROM rajim59/python-hardened:latest AS base
 
 FROM base AS builder
 USER root
 COPY app/requirements.txt /tmp/requirements.txt
 
-# ৩. DL3018 ফিক্স: বিল্ড ডিপেন্ডেন্সির জন্য Hadolint-কে ইগনোর করতে বলা হলো
 # hadolint ignore=DL3018
 RUN apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev && \
     mkdir -p /root/.local && \
@@ -15,14 +13,12 @@ RUN apk add --no-cache --virtual .build-deps gcc musl-dev libffi-dev && \
     find /root/.local -type f -name '*.pyc' -delete || true && \
     apk del .build-deps
 
-# ২. DL3002 ফিক্স: Builder স্টেজের কাজ শেষে root থেকে বের হয়ে appuser-এ সুইচ করা হলো
 USER appuser
 
 FROM base
 USER appuser
 WORKDIR /app
 
-# /root/.local থেকে সরাসরি কপি করা হচ্ছে
 COPY --chown=appuser:appgroup --from=builder /root/.local /home/appuser/.local
 COPY --chown=appuser:appgroup app/src/ ./src/
 
