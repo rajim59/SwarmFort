@@ -1,0 +1,22 @@
+name: Multi-Arch Builder Verification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  verify-buildx:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+        
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Verify multi-arch build
+        run: |
+          docker buildx build --platform linux/amd64,linux/arm64 \
+            -t rajim59/swarmfort-api:test-multiarch \
+            -f infra/docker/Dockerfile.prod .
