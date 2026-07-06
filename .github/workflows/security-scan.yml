@@ -3,7 +3,7 @@ name: Nightly Security Scan
 on:
   schedule:
     - cron: '0 2 * * *'     # প্রতিদিন রাত ২টায় রান করবে
-  workflow_dispatch:        # টেস্টিংয়ের জন্য ম্যানুয়াল ট্রিগার যুক্ত করা হলো
+  workflow_dispatch:        # টেস্টিংয়ের জন্য ম্যানুয়াল ট্রিগার
 
 jobs:
   nightly-scan:
@@ -15,12 +15,12 @@ jobs:
       - name: Run Trivy full scan
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'rajim59/swarmfort-api:latest' # 👈 এখানে আপনার আসল ইউজারনেম বসানো হয়েছে
+          image-ref: 'rajim59/swarmfort-api:latest'
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL'
         env:
-          # ডকার হাবের রেট লিমিট বা প্রাইভেট ইমেজের জন্য ক্রেডেনশিয়াল পাস করা হলো
+          # ডকার হাবের রেট লিমিট বা প্রাইভেট ইমেজের জন্য ক্রেডেনশিয়াল
           TRIVY_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
           TRIVY_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
@@ -29,3 +29,16 @@ jobs:
         with:
           name: trivy-scan
           path: trivy-results.sarif
+
+      # নতুন সংযোজন: Docker Bench Security দিয়ে রানটাইম এবং হোস্ট অডিট
+      - name: Run Docker Bench Security
+        run: |
+          chmod +x infra/security/docker-bench-security.sh
+          ./infra/security/docker-bench-security.sh > docker-bench-report.txt 2>&1 || true
+
+      # নতুন সংযোজন: অডিট রিপোর্টটি গিটহাবে আর্টিফ্যাক্ট হিসেবে সেভ করা
+      - name: Upload Docker Bench report
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-bench-report
+          path: docker-bench-report.txt
