@@ -25,3 +25,4 @@ commandTests:
   - name: 'App user is not root'
     command: 'whoami'
     expectedOutput: ['appuser']
+  
