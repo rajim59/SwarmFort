@@ -1,0 +1,23 @@
+name: Automated Swarm Backup
+
+on:
+  schedule:
+    - cron: '0 3 * * *'   # প্রতিদিন রাত ৩টা
+  workflow_dispatch:
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run backup on manager
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SWARM_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh -o StrictHostKeyChecking=no azureuser@${{ secrets.MANAGER_IP }} \
+            "bash /home/azureuser/backup-swarm.sh"
+      - name: Upload backup to artifact (if local)
+        run: |
+          scp azureuser@${{ secrets.MANAGER_IP }}:/backups/swarm/*.tar.gz.gpg .
+          # or upload to S3
