@@ -185,4 +185,25 @@ setup-dr-automation:
 	ssh azureuser@$(MANAGER_IP) "bash /home/azureuser/swarm-scripts/cleanup-cron-setup.sh"
 
 
-# 333
+# =====================================================================
+# GitOps & Ansible Deployment (Phase 9)
+# =====================================================================
+
+ANSIBLE_PLAYBOOK = infra/gitops/ansible/playbooks/deploy-stack.yml
+INVENTORY = infra/gitops/ansible/inventory.ini
+
+.PHONY: gitops-lint gitops-dry-run gitops-deploy
+
+gitops-lint: ## Check syntax and lint the Ansible playbook
+	@echo "🔍 Running Ansible Syntax Check..."
+	ansible-playbook --syntax-check $(ANSIBLE_PLAYBOOK)
+	@echo "🧹 Running Ansible Lint..."
+	ansible-lint $(ANSIBLE_PLAYBOOK) || true
+
+gitops-dry-run: ## Perform a dry run (simulate deployment)
+	@echo "🧪 Running Ansible in Dry-Run mode..."
+	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOK) --check --diff
+
+gitops-deploy: ## Deploy the stack using Ansible GitOps playbook
+	@echo "🚀 Deploying stack via GitOps (Ansible)..."
+	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOK)
