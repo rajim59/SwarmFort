@@ -1,0 +1,62 @@
+---
+- name: Deploy Docker Swarm Stack from Git & Drift Check
+  hosts: swarm_managers
+  gather_facts: true
+  vars:
+    git_repo: "https://github.com/rajim59/SwarmFort.git"
+    git_branch: "main"
+    stack_name: "swarmfort"
+    compose_file: "infra/docker/docker-stack.yml"
+    local_checkout_path: "/opt/swarmfort-git"
+    drift_check: true
+
+  tasks:
+    - name: Ensure git is installed
+      ansible.builtin.package:
+        name: git
+        state: present
+      become: true
+
+    - name: Clone/pull latest stack definition from Git
+      ansible.builtin.git:
+        repo: "{{ git_repo }}"
+        dest: "{{ local_checkout_path }}"
+        version: "{{ git_branch }}"
+        update: true
+        force: true
+
+    - name: Deploy stack (idempotent)
+      ansible.builtin.command:
+        cmd: "docker stack deploy -c {{ local_checkout_path }}/{{ compose_file }} {{ stack_name }}"
+      register: deploy_result
+      changed_when: "'Updating service' in deploy_result.stdout or 'Creating service' in deploy_result.stdout"
+
+    - name: Wait for services to stabilize
+      ansible.builtin.pause:
+        seconds: 30
+
+    - name: Drift check - compare running stack vs git definition
+      when: drift_check
+      block:
+        - name: Export current stack configuration
+          ansible.builtin.command: >
+            docker stack services {{ stack_name }}
+            --format '{{ '{{' }} .Name {{ '}}' }} {{ '{{' }} .Image {{ '}}' }} {{ '{{' }} .Mode {{ '}}' }} {{ '{{' }} .Replicas {{ '}}' }}'
+          register: current_stack_output
+          changed_when: false
+
+        - name: Get defined services from compose file (Remote execution)
+          ansible.builtin.command: "docker compose -f {{ local_checkout_path }}/{{ compose_file }} config --services"
+          register: compose_services_output
+          changed_when: false
+
+        - name: Set defined services fact
+          ansible.builtin.set_fact:
+            defined_services: "{{ compose_services_output.stdout_lines }}"
+
+        - name: Check for any service not matching definition
+          # Simplified drift check; full implementation would compare service by service
+          ansible.builtin.debug:
+            msg: "Drift detected in stack {{ stack_name }}. Manual review required."
+          when: >
+            current_stack_output.stdout is not search('all expected')
