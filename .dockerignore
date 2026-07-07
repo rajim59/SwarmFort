@@ -35,3 +35,7 @@ app/src/__pycache__/
 *.bak
 *.tar.gz
 *.zip
+
+
+# Ignore Ansible real inventory to prevent IP/Secret exposure
+infra/gitops/ansible/inventory.ini
