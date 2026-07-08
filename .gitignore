@@ -43,4 +43,3 @@ app/src/__pycache__/
 *.crt
 .env
 secrets/
-
