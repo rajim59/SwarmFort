@@ -1,12 +1,11 @@
 services:
   api:
     image: rajim59/swarmfort-api:latest
-    # আপনার অন্যান্য কনফিগারেশন...
     deploy:
       resources:
         limits:
-          cpus: "2.00"      # প্রোডাকশনের জন্য কঠোর মান
-          memory: 1G        # প্রোডাকশনের জন্য কঠোর মান
+          cpus: "2.00"      
+          memory: 1G        
         reservations:
           cpus: "1.00"
           memory: 512M

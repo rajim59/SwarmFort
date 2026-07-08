@@ -1,4 +1,4 @@
-FROM myrepo/python-hardened:latest
+FROM rajim59/python-hardened:latest
 
 USER root
 

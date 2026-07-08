@@ -1,9 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# ============================================================
 # multi-arch-build 
-# ============================================================
 
 REGISTRY="${DOCKER_REGISTRY:-myrepo}"
 IMAGE_NAME="${IMAGE_NAME:-swarmfort-api}"

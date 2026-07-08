@@ -1,9 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# ============================================================
 # buildx multiarch builder initialization script 
-# ============================================================
 
 BUILDER_NAME="${BUILDER_NAME:-multiarch-builder}"
 

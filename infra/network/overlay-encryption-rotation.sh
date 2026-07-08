@@ -1,9 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# ============================================================
 # SwarmFort - Native Overlay Network Key Rotation (Req 47)
-# ============================================================
 
 echo "Initiating Native Overlay Network Data Path Cryptographic Key Rotation..."
 

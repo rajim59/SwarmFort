@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# ============================================================
+
 # Docker events stream → Loki (HTTP API)
-# ============================================================
+
 
 LOKI_URL="${LOKI_URL:-http://loki:3100/loki/api/v1/push}"
 
