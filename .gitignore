@@ -1,5 +1,5 @@
 # Terraform
-.terraform/
+**/.terraform/*
 *.tfstate
 *.tfstate.*
 *.tfvars
@@ -43,3 +43,4 @@ app/src/__pycache__/
 *.crt
 .env
 secrets/
+
