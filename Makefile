@@ -207,3 +207,5 @@ gitops-dry-run: ## Perform a dry run (simulate deployment)
 gitops-deploy: ## Deploy the stack using Ansible GitOps playbook
 	@echo "🚀 Deploying stack via GitOps (Ansible)..."
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOK)
+
+
