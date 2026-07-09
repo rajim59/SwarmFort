@@ -65,7 +65,7 @@ services:
       restart_policy:
         condition: any
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- --no-check-certificate https://localhost/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
