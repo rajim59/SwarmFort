@@ -168,6 +168,7 @@ locals {
   docker_install_script = <<-EOF
     #!/bin/bash
     set -e
+    export DEBIAN_FRONTEND=noninteractive
     curl -fsSL https://get.docker.com | sh
     sudo usermod -aG docker ${var.admin_username}
     sudo systemctl enable docker
@@ -229,8 +230,8 @@ resource "azurerm_linux_virtual_machine" "workers" {
 
   source_image_reference {
     publisher = "Canonical"
-    offer     = "ubuntu-24_04-lts"
-    sku       = "server"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
 

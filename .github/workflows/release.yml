@@ -81,7 +81,18 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SWARM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
-          tar -czf deploy.tar.gz -C infra/docker .
+          
+          # ফিক্স ১: শুধুমাত্র docker ফোল্ডার নয়, সম্পূর্ণ infra ফোল্ডারটি জিপ করা হচ্ছে
+          tar -czf deploy.tar.gz infra/
+          
           scp -o StrictHostKeyChecking=no deploy.tar.gz azureuser@${{ secrets.MANAGER_IP }}:/tmp/
+          
+          # ফিক্স ২: ক্লাউডে ঢুকে আনজিপ করা, সিক্রেট তৈরি করা এবং সঠিক পাথ থেকে স্ট্যাক ডিপ্লয় করা
           ssh -o StrictHostKeyChecking=no azureuser@${{ secrets.MANAGER_IP }} \
-            "cd /tmp && mkdir -p swarm_deploy && mv deploy.tar.gz swarm_deploy/ && cd swarm_deploy && tar -xzf deploy.tar.gz && docker stack deploy -c docker-stack.yml swarmfort"
+            "cd /tmp && \
+             rm -rf swarm_deploy && mkdir -p swarm_deploy && \
+             mv deploy.tar.gz swarm_deploy/ && \
+             cd swarm_deploy && \
+             tar -xzf deploy.tar.gz && \
+             printf '${{ secrets.DB_PASSWORD }}' | docker secret create db_password - || true && \
+             docker stack deploy -c infra/docker/docker-stack.yml swarmfort"
