@@ -82,7 +82,7 @@ jobs:
           echo "${{ secrets.SWARM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           
-          # ফিক্স ১: শুধুমাত্র docker ফোল্ডার নয়, সম্পূর্ণ infra ফোল্ডারটি জিপ করা হচ্ছে
+          # ফিক্স ১: শুধুমাত্র docker ফোল্ডার নয়, সম্পূর্ণ infra ফোল্ডারটি জিপ করা হচ্ছে
           tar -czf deploy.tar.gz infra/
           
           scp -o StrictHostKeyChecking=no deploy.tar.gz azureuser@${{ secrets.MANAGER_IP }}:/tmp/
