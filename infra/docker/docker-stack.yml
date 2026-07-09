@@ -30,7 +30,7 @@ secrets:
     external: true
 
 configs:
-  nginx_conf_v2:
+  nginx_conf_v3:
     file: ./nginx.conf
   prometheus_config:
     file: ../monitoring/prometheus/prometheus.yml
@@ -52,7 +52,7 @@ services:
       - "80:80"
       - "443:443"
     configs:
-      - source: nginx_conf_v2
+      - source: nginx_conf_v3
         target: /etc/nginx/conf.d/default.conf
     secrets:
       - site.crt
