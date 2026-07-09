@@ -131,7 +131,7 @@ services:
         limits: { cpus: "0.50", memory: 256M }
         reservations: { cpus: "0.25", memory: 128M }
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a $$(cat /run/secrets/api_key) ping || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 3
