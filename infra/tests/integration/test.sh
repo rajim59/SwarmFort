@@ -4,10 +4,12 @@ set -e
 echo "=== Integration Tests (Network, TLS & Image Size) ==="
 
 echo "--- Testing Production Image Size (Req 5) ---"
-# ইমেজটি ম্যানেজারে আছে কিনা তা আগে চেক করে নিচ্ছি
+
+# Verify that the image exists on the manager node before inspection
 if docker image inspect myrepo/swarmfort-api:latest >/dev/null 2>&1; then
     IMAGE_SIZE=$(docker inspect myrepo/swarmfort-api:latest --format='{{.Size}}')
     SIZE_MB=$((IMAGE_SIZE / 1000000))
+
     if [ "$SIZE_MB" -lt 25 ]; then
         echo "✓ Image size optimized: ${SIZE_MB}MB (< 25MB)"
     else

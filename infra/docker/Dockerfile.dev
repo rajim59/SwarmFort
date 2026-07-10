@@ -2,7 +2,7 @@ FROM rajim59/python-hardened:latest
 
 USER root
 
-# ডেভ টুলস: হট রিলোড, লিন্টার, ডিবাগার
+# Development tools: hot reload, linting, and debugging
 RUN apk add --no-cache \
     curl \
     git \
@@ -14,20 +14,20 @@ RUN apk add --no-cache \
     black \
     debugpy
 
-# অ্যাপ ইউজারে ফেরা
+# Switch back to the application user
 USER appuser
 WORKDIR /app
 
-# পাথগুলোতে app/ প্রিফিক্স যুক্ত করা হয়েছে
+# Copy requirements file from the app directory
 COPY --chown=appuser:appgroup app/requirements.txt .
 RUN pip install --user --no-cache-dir -r requirements.txt
 
-# পাথগুলোতে app/ প্রিফিক্স যুক্ত করা হয়েছে
+# Copy application source code from the app directory
 COPY --chown=appuser:appgroup app/src/ ./src/
 
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 8000 5678
 
-# ডিবাগ মোডে হট রিলোড সহ uvicorn
+# Start Uvicorn in debug mode with hot reload enabled
 CMD ["uvicorn", "src.app:app", "--host", "0.0.0.0", "--port", "8000", "--reload", "--reload-dir", "/app/src"]
