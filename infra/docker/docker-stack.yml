@@ -75,6 +75,7 @@ services:
     networks:
       - backend-net
       - database-net
+      - monitoring-net
     environment:
       - DATABASE_URL=postgresql://user:$$(cat /run/secrets/db_password)@db:5432/mydb
       - REDIS_URL=redis:6379
