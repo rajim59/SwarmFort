@@ -81,6 +81,18 @@ resource "azurerm_network_security_group" "swarm_nsg" {
   }
 
   security_rule {
+    name                       = "AllowGrafana"
+    priority                   = 130
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3000"
+    source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
     name                       = "AllowSwarmMgmt"
     priority                   = 200
     direction                  = "Inbound"
@@ -170,7 +182,7 @@ locals {
     set -e
     export DEBIAN_FRONTEND=noninteractive
     curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker ${var.admin_username}
+    sudo usermod -aG docker \${var.admin_username}
     sudo systemctl enable docker
     sudo systemctl start docker
     echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
@@ -198,8 +210,8 @@ resource "azurerm_linux_virtual_machine" "manager" {
 
   source_image_reference {
     publisher = "Canonical"
-    offer     = "ubuntu-24_04-lts"
-    sku       = "server"
+    offer     = "0001-com-ubuntu-server-jammy"
+    sku       = "22_04-lts"
     version   = "latest"
   }
 
