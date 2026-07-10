@@ -1,7 +1,7 @@
 .PHONY: infra-up infra-down swarm-setup verify-cluster swarm-stop swarm-start setup-tls setup-app-secrets deploy-stack remove-stack test-stack build-base build-dev build-prod buildx test-structure push-prod build-base-multi gen-cosign-keys oom-adjust verify-resources deploy-monitoring-stack verify-monitoring setup-dr-automation gitops-lint gitops-dry-run gitops-deploy
 
 # ==============================================================================
-# Infrastructure Management
+# Infrastructure Management 
 # ==============================================================================
 
 infra-up:
