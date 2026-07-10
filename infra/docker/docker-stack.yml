@@ -54,6 +54,11 @@ services:
     secrets:
       - site.crt
       - site.key
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     deploy:
       replicas: 2
       placement:
@@ -82,6 +87,11 @@ services:
     secrets:
       - db_password
       - api_key
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     deploy:
       replicas: 3
       placement:
@@ -110,6 +120,11 @@ services:
       POSTGRES_DB: mydb
     secrets:
       - db_password
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - pgdata:/var/lib/postgresql/data
     deploy:
@@ -132,6 +147,11 @@ services:
     command: ["sh", "-c", "redis-server --requirepass $$(cat /run/secrets/api_key)"]
     secrets:
       - api_key
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     deploy:
       replicas: 1
       placement:
@@ -160,6 +180,11 @@ services:
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - prometheus_data:/prometheus
     deploy:
@@ -178,6 +203,11 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - grafana_data:/var/lib/grafana
     deploy:
@@ -194,6 +224,11 @@ services:
       - monitoring-net
     ports:
       - "8080:8080"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -202,7 +237,7 @@ services:
     deploy:
       mode: global
       resources:
-        limits: { memory: 128M }
+        limits: { memory: 256M }
 
   node-exporter:
     image: prom/node-exporter:latest
@@ -210,6 +245,11 @@ services:
       - monitoring-net
     ports:
       - "9100:9100"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -232,6 +272,11 @@ services:
       - source: loki_config
         target: /etc/loki/loki-config.yml
     command: -config.file=/etc/loki/loki-config.yml
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - loki_data:/loki
     deploy:
@@ -260,6 +305,11 @@ services:
           done
           sleep 5
         done
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
@@ -272,4 +322,3 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
-  
