@@ -1,15 +1,22 @@
 name: Automated Swarm Backup
 
 on:
-  schedule:
-    - cron: '0 3 * * *'   # প্রতিদিন রাত ৩টা
-  workflow_dispatch:
+  # NOTE FOR PRODUCTION:
+  # Uncomment the schedule block below to enable automatic daily backups.
+  # Currently commented out to save GitHub Actions free tier limits (1000 mins),
+  # as the Azure servers are kept stopped during the development phase.
+  #
+  # schedule:
+  #   - cron: '0 3 * * *'   # Runs daily at 3:00 AM
+
+  workflow_dispatch:        # Allows manual execution from GitHub UI
 
 jobs:
   backup:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      
       - name: Run backup on manager
         run: |
           mkdir -p ~/.ssh
@@ -17,6 +24,7 @@ jobs:
           chmod 600 ~/.ssh/id_rsa
           ssh -o StrictHostKeyChecking=no azureuser@${{ secrets.MANAGER_IP }} \
             "bash /home/azureuser/backup-swarm.sh"
+            
       - name: Upload backup to artifact (if local)
         run: |
           scp azureuser@${{ secrets.MANAGER_IP }}:/backups/swarm/*.tar.gz.gpg .
