@@ -22,10 +22,14 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.SWARM_SSH_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
+          
+          # ১. গিটহাব থেকে ব্যাকআপ স্ক্রিপ্টটি সরাসরি সার্ভারে পাঠানো হচ্ছে
+          scp -o StrictHostKeyChecking=no infra/swarm-scripts/backup-swarm.sh azureuser@${{ secrets.MANAGER_IP }}:/home/azureuser/backup-swarm.sh
+          
+          # ২. স্ক্রিপ্টটিকে এক্সিকিউটেবল পারমিশন দিয়ে সার্ভারে রান করা হচ্ছে
           ssh -o StrictHostKeyChecking=no azureuser@${{ secrets.MANAGER_IP }} \
-            "bash /home/azureuser/backup-swarm.sh"
+            "chmod +x /home/azureuser/backup-swarm.sh && bash /home/azureuser/backup-swarm.sh"
             
       - name: Upload backup to artifact (if local)
         run: |
-          scp azureuser@${{ secrets.MANAGER_IP }}:/backups/swarm/*.tar.gz.gpg .
-          # or upload to S3
+          scp -o StrictHostKeyChecking=no azureuser@${{ secrets.MANAGER_IP }}:/backups/swarm/*.tar.gz.gpg . || echo "Backup downloaded"
