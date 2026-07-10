@@ -1,4 +1,4 @@
-.PHONY: infra-up infra-down swarm-setup verify-cluster swarm-stop swarm-start setup-tls setup-app-secrets deploy-stack remove-stack test-stack build-base build-dev build-prod buildx test-structure push-prod build-base-multi gen-cosign-keys oom-adjust verify-resources deploy-monitoring-stack verify-monitoring setup-dr-automation gitops-lint gitops-dry-run gitops-deploy
+.PHONY: infra-up infra-down swarm-setup verify-cluster swarm-stop swarm-start setup-tls setup-app-secrets deploy-stack remove-stack test-stack build-base build-dev build-prod buildx test-structure push-prod build-base-multi gen-cosign-keys oom-adjust verify-resources deploy-monitoring-stack verify-monitoring setup-dr-automation test-chaos gitops-lint gitops-dry-run gitops-deploy
 
 # ==============================================================================
 # Infrastructure Management 
@@ -177,6 +177,16 @@ setup-dr-automation:
 	scp /tmp/scripts.tar.gz azureuser@$(MANAGER_IP):/tmp/
 	ssh azureuser@$(MANAGER_IP) "cd /home/azureuser && tar -xzf /tmp/scripts.tar.gz && chmod +x swarm-scripts/*.sh network/*.sh"
 	ssh azureuser@$(MANAGER_IP) "bash /home/azureuser/swarm-scripts/cleanup-cron-setup.sh"
+
+# ==============================================================================
+# Chaos Engineering & Resiliency Testing
+# ==============================================================================
+
+test-chaos:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/tests/chaos/kill-random-node.sh infra/tests/chaos/network-latency.sh azureuser@$(MANAGER_IP):/tmp/
+	ssh -t azureuser@$(MANAGER_IP) "chmod +x /tmp/kill-random-node.sh && /tmp/kill-random-node.sh"
+	ssh -t azureuser@$(MANAGER_IP) "sudo /tmp/network-latency.sh 200ms 30"
 
 # ==============================================================================
 # GitOps & Ansible Deployment
