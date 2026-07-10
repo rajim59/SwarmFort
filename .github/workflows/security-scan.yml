@@ -1,9 +1,15 @@
 name: Nightly Security Scan
 
 on:
-  schedule:
-    - cron: '0 2 * * *'     # প্রতিদিন রাত ২টায় রান করবে
-  workflow_dispatch:        # টেস্টিংয়ের জন্য ম্যানুয়াল ট্রিগার
+  # NOTE FOR PRODUCTION:
+  # Uncomment the schedule block below to enable automatic daily backups.
+  # Currently commented out to save GitHub Actions free tier limits (1000 mins),
+  # as the Azure servers are kept stopped during the development phase.
+  #
+  # schedule:
+  #   - cron: '0 2 * * *'   # Runs daily at 3:00 AM
+
+  workflow_dispatch:        # Allows manual execution from GitHub UI      # টেস্টিংয়ের জন্য ম্যানুয়াল ট্রিগার
 
 jobs:
   nightly-scan:
