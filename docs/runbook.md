@@ -1,4 +1,3 @@
-```markdown
 # SwarmFort Runbook
 
 **Operational procedures for deploying, monitoring, recovering, and maintaining the SwarmFort platform—designed for SRE‑driven operations.**
@@ -487,5 +486,3 @@ docker service update --force swarmfort_nginx
 | Diagnostic script | `ssh azureuser@<manager> ./diagnostic.sh` |
 
 ---
-
-**SwarmFort Runbook** – Operational excellence through SRE principles. Keep this document alive; update after every incident.```
