@@ -1,4 +1,3 @@
-```markdown
 # SwarmFort Architecture
 
 **A production-grade Docker Swarm platform — C4 Model, design decisions, failure mode analysis, and capacity planning.**
