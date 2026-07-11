@@ -1,4 +1,3 @@
-```markdown
 # SwarmFort Security Hardening
 
 **Implementation details, risk analysis, compliance mapping, and verifiable controls for every security layer in the platform.**
