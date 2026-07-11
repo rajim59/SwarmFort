@@ -1,31 +1,54 @@
-
 ```markdown
 # SwarmFort
 
-**TL;DR** — A batteries-included, security-hardened Docker Swarm platform that gives your team Kubernetes-grade security and observability without the operational complexity. One command to production: `make demo`.
+**A production-grade Docker Swarm platform with zero‑trust security, supply chain integrity, and full observability — designed for teams that value simplicity over complexity.**
 
-[![CI](https://github.com/your-org/SwarmFort/actions/workflows/ci.yml/badge.svg)](https://github.com/your-org/SwarmFort/actions/workflows/ci.yml)
-[![Security Scan](https://github.com/your-org/SwarmFort/actions/workflows/security-scan.yml/badge.svg)](https://github.com/your-org/SwarmFort/actions/workflows/security-scan.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![CI](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/ci.yml/badge.svg)](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/security-scan.yml/badge.svg)](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/security-scan.yml)
 [![SLSA Level 2+](https://img.shields.io/badge/SLSA-Level%202%2B-brightgreen)](https://slsa.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker Pulls](https://img.shields.io/docker/pulls/mehmedhasanrajim/swarmfort-api)](https://hub.docker.com/r/mehmedhasanrajim/swarmfort-api)
 
 ---
 
-## 🧩 Why SwarmFort?
+## 🧩 The Problem
 
-Small-to-medium engineering teams face a dilemma:
+Small-to-medium engineering teams often need a container platform that is:
+- **Simple** to operate without a dedicated SRE team
+- **Secure** by default — encrypted traffic, signed images, hardened runtimes
+- **Observable** with logs, metrics, and alerts
+- **Resilient** with automated backups, rolling updates, and disaster recovery
+- **Cost-effective** on commodity cloud VMs or on‑premise
 
-- **Kubernetes** is powerful but demands dedicated SRE resources and a steep learning curve.
-- **Bare Docker Swarm** lacks encryption, supply chain security, and observability—it's not production-ready out of the box.
-
-SwarmFort solves both problems. It's a **reference architecture** that layers enterprise-grade security and automation onto Docker Swarm—the orchestrator already built into Docker. No new tools to learn. No vendor lock-in. Just a secure, observable, and resilient platform that you can deploy in minutes.
-
-> **Who is this for?** Teams of 5–50 engineers who want production-grade container infrastructure without hiring a dedicated SRE team. Ideal for startups, scale-ups, and on-premise deployments.
+Existing solutions force a choice between a minimal, insecure setup and a complex Kubernetes distribution that demands significant operational expertise. SwarmFort bridges this gap: it delivers enterprise‑grade security, monitoring, and automation on Docker Swarm — the orchestrator that’s already built into Docker.
 
 ---
 
-## 🏗️ Architecture at a Glance
+## ✅ The Solution
 
+SwarmFort is a **turnkey reference architecture** that transforms a vanilla Docker Swarm cluster into a hardened, production‑ready platform. It provides:
+
+- 🔐 **Encrypted overlay networks** with automatic key rotation
+- 🧱 **Three‑tier network isolation** (frontend, backend, database)
+- 🚦 **Ingress TLS termination** via Nginx, with load balancing
+- 🐳 **Golden base images** with non‑root users, updated SSL libraries, and custom CA bundles
+- 🛡️ **Software supply chain security** – DCT, Cosign, SLSA provenance, SBOM generation
+- ⚙️ **Runtime hardening** – seccomp, AppArmor, read‑only rootfs, no‑new‑privileges, user namespace remapping
+- 📊 **Full observability** – Prometheus, Grafana dashboards (RED method + resource usage), Loki for logs, and Docker event streaming
+- 🤖 **Automated operations** – encrypted swarm backup/restore, secret rotation, disk cleanup, cron jobs
+- 🚀 **CI/CD pipelines** (GitHub Actions) for multi‑arch builds, vulnerability scanning, policy checks, and deployment
+- 📈 **GitOps ready** – Ansible playbook and optional Flux configuration for declarative cluster management
+- 🧪 **Chaos engineering tests** – random node kill and network latency injection to validate resilience
+
+All of this is **fully automated** and driven by a single `Makefile`. From spinning up cloud VMs to deploying the entire stack and running integration tests, one command is enough: `make demo`.
+
+---
+
+## 🏗️ Architecture
+
+![SwarmFort Architecture](docs/images/architecture.png)
+
+### Network Isolation & Traffic Flow
 ```
                   ┌─────────────┐
                   │  INTERNET   │
@@ -43,203 +66,166 @@ SwarmFort solves both problems. It's a **reference architecture** that layers en
            │ PostgreSQL │ │   Redis    │  ← database-net (IPsec encrypted)
            └────────────┘ └────────────┘
 ```
+- **Only Nginx exposes ports** to the internet (80/443). All other services communicate over encrypted overlay networks.
+- **Monitoring services** (Prometheus, Grafana, Loki, cAdvisor, Node Exporter) run on a separate `monitoring-net` (also encrypted).
 
-**Key Design Decisions** (see [architecture.md](docs/architecture.md) for details):
-
-| Decision | Choice | Rationale |
-|----------|--------|-----------|
-| Orchestrator | Docker Swarm | Built-in, simpler, no etcd to manage |
-| Ingress | Nginx | Mature, well-understood, custom config easy |
-| Base Image | Alpine | < 25MB, minimal attack surface |
-| Monitoring | Prometheus + Grafana + Loki | OSS, no vendor lock-in, Swarm-native service discovery |
-| Log Aggregation | Fluentd → Loki | Lightweight, same stack as metrics |
-| Security Policies | OPA/Rego | Policy-as-code, CI/CD enforceable |
-| Supply Chain | Cosign + DCT + SLSA | Dual signing, verifiable provenance |
-| GitOps | Ansible (primary) + Flux (optional) | Flexibility for different team preferences |
+The complete component map and design decisions are documented in **[docs/architecture.md](docs/architecture.md)**.
 
 ---
 
-## ✨ Features & Security Rationale
+## ✨ Feature Highlights & Rationale
 
-### Why Every Security Layer Matters
+### 🔐 Defense in Depth – Why Every Security Layer Matters
+| Layer | Implementation | Why |
+|-------|---------------|-----|
+| **Encrypted overlay network** | `--opt encrypted` on all overlay networks | Prevents eavesdropping on inter‑node traffic; IPsec without extra infrastructure |
+| **Network isolation** | `frontend-net`, `backend-net`, `database-net` | Limits blast radius; database never exposed to internet |
+| **Golden base image** | `Dockerfile.base` with updated CA, libssl, non‑root user | Pre‑approved foundation for all app images; reduces CVE surface |
+| **Non‑root user** | `USER appuser` (UID 1001) in all images | If container escapes, attacker has minimal privileges |
+| **Capability dropping** | `cap_drop: ALL` in stack | Even root inside container has almost no kernel power |
+| **no‑new‑privileges** | Set on every container | Prevents privilege escalation via setuid binaries |
+| **Read‑only rootfs** | Enabled where possible | Attackers cannot modify binaries or configuration |
+| **Seccomp profile** | Custom 300+ syscall whitelist | Blocks dangerous kernel calls; tailored for Python/Node APIs |
+| **AppArmor profile** | Mandatory access control for app binaries | Restricts file, network, and capability access |
+| **User namespace remapping** | `userns-remap` in daemon config | Maps container root to a high‑UID nobody on host |
+| **DCT + Cosign + SLSA** | Offline root key, keyless signing, provenance | Verifiable supply chain; only signed images deployed |
+| **OPA policies** | Image label + runtime config checks | Policy‑as‑code to enforce security standards before deployment |
+| **Trivy scanning** | PR (HIGH/CRITICAL) + nightly full scan | Catch CVEs early; block merge if thresholds exceeded |
+| **Encrypted backups** | GPG symmetric encryption | Backup theft doesn’t compromise data |
 
-| # | Layer | What It Prevents | Implementation |
-|---|-------|-----------------|----------------|
-| 1 | Encrypted Overlay (IPsec) | Eavesdropping on inter-node traffic | `--opt encrypted` on all networks |
-| 2 | Network Isolation | Lateral movement; DB never exposed to internet | 3 separate overlay networks |
-| 3 | Non-root User | Container escape → host compromise | `USER appuser` (UID 1001) |
-| 4 | Capability Dropping | Privileged operations even as root | `cap_drop: ALL` |
-| 5 | no-new-privileges | Privilege escalation via setuid | Set on every container |
-| 6 | Read-only Rootfs | Binary/config tampering | Enabled on stateless services |
-| 7 | Seccomp Profile | Dangerous syscall exploitation | Custom 300+ syscall whitelist |
-| 8 | AppArmor Profile | Unauthorized file/network access | Mandatory access control |
-| 9 | User Namespace Remap | Host root compromise via container | `userns-remap` in daemon |
-| 10 | DCT + Cosign + SLSA | Unsigned/tampered images in registry | Dual signing + provenance |
-| 11 | OPA Policies | Non-compliant deployments | Policy-as-code enforcement |
-| 12 | Trivy (PR + Nightly) | CVEs in production | Block merge on HIGH/CRITICAL |
-| 13 | Encrypted Backups | Data breach from backup theft | GPG symmetric encryption |
-| 14 | Secret Rotation | Credential leaks | Automated rotation scripts |
+### 📊 Observability
+- **Prometheus** scrapes cAdvisor, Node Exporter, and API `/metrics`.
+- **Grafana dashboards** give instant visibility: API RED (Rate, Errors, Duration) and resource usage.
+- **Loki** aggregates all container logs, enriched by Fluentd.
+- **Alert rules** cover OOMKills, high latency, CPU/memory saturation, and disk exhaustion.
+- **Docker event exporter** streams Swarm events into Loki for operational insight.
+
+### ⚡ Operational Automation
+- **Rolling updates** with `parallelism: 1`, `delay: 10s`, `failure_action: rollback`.
+- **Canary deployment** script integrates with Prometheus to automate traffic shifting.
+- **Encrypted swarm state backup** to local/S3; restorable with one command.
+- **Secret rotation** renews credentials without downtime.
+- **Overlay encryption key rotation** migrates services transparently.
 
 ---
 
 ## 🚀 Quick Start
 
 ### Prerequisites
+- Azure CLI (or any cloud provider with Terraform)
+- Terraform ≥ 1.5
+- SSH key pair
+- GitHub account (for CI/CD)
 
-| Requirement | Version | Check Command |
-|-------------|---------|---------------|
-| Terraform | ≥ 1.5 | `terraform version` |
-| Azure CLI | Latest | `az version` |
-| Docker | ≥ 24 | `docker version` |
-| SSH Key | RSA 4096-bit | `ssh-keygen -t rsa -b 4096` |
-| GitHub Account | - | For CI/CD |
-
-### One-Command Deploy
+### 1. Clone the repository
 ```bash
-git clone https://github.com/your-org/SwarmFort.git
+git clone https://github.com/Mehmed-Hasan-Rajim/SwarmFort.git
 cd SwarmFort
+```
+
+### 2. Deploy everything
+```bash
 make demo
 ```
-**What happens:** Terraform provisions 3 Azure VMs → Swarm initializes → TLS certs generated → Full stack deploys → Integration tests run → **Production-ready in ~10 minutes.**
+This single command will:
+1. Provision 3 Azure VMs (1 manager + 2 workers) with Docker pre‑installed.
+2. Initialize a Docker Swarm and join workers.
+3. Create encrypted overlay networks.
+4. Set up TLS certificates and deploy the full stack (Nginx, API, PostgreSQL, Redis, monitoring).
+5. Run integration tests to verify API, database, Redis, and network encryption.
 
-### Verify Success
-```bash
-curl https://$(terraform -chdir=infra/terraform output -raw manager_public_ip)/health
-# {"status":"ok"}
-```
-
-### Access Services
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| API | `https://<manager-ip>/health` | Public |
-| Grafana | `http://<manager-ip>:3000` | admin/admin |
-| Prometheus | `http://<manager-ip>:9090` | Public |
-| Alertmanager | `http://<manager-ip>:9093` | Public |
-| Loki (via Grafana) | `http://<manager-ip>:3100` | Explore in Grafana |
-
-### Demo API Endpoints
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/health` | GET | Health check (returns `{"status":"ok"}`) |
-| `/ping` | GET | Ping test (returns `{"message":"pong"}`) |
-| `/metrics` | GET | Prometheus metrics |
-| `/db-health` | GET | Database connectivity check |
+### 3. Access the services
+- **API:** `https://<manager-ip>/health`
+- **Grafana:** `http://<manager-ip>:3000` (admin/admin)
+- **Prometheus:** `http://<manager-ip>:9090`
+- **Loki:** `http://<manager-ip>:3100`
 
 ---
 
-## 🛠️ Makefile Reference
+## 🛠️ Using the Makefile
 
-| Command | What It Does | When to Use |
-|---------|-------------|--------------|
-| `make demo` | Full deployment + tests | First time, demos |
-| `make infra-up` | Create VMs + Swarm | Re-provisioning |
-| `make deploy-stack` | Deploy/update stack | Code changes |
-| `make test-all` | Structure + integration + chaos | Pre-release |
-| `make scan` | Local Trivy scan | Pre-commit |
-| `make backup` | Encrypted swarm backup | Before maintenance |
-| `make restore` | Restore from backup | Disaster recovery |
-| `make buildx` | Multi-arch build + push | Release |
-| `make clean` | Destroy everything | Teardown |
+| Command | Description |
+|---------|-------------|
+| `make demo` | Full deployment from scratch + tests |
+| `make infra-up` | Provision VMs and initialize Swarm |
+| `make deploy-stack` | Deploy the application + monitoring stack |
+| `make test-all` | Structure, integration, and chaos tests |
+| `make scan` | Local Trivy vulnerability scan |
+| `make backup` | Encrypted swarm state + volume backup |
+| `make restore` | Restore from a backup (interactive) |
+| `make buildx` | Build and push multi‑arch image |
+| `make clean` | Remove stack and destroy infrastructure |
 
----
-
-## 🤖 CI/CD Pipeline
-
-| Workflow | Trigger | What It Does |
-|----------|---------|--------------|
-| `ci.yml` | Pull Request | Build (amd64+arm64), Hadolint, Trivy (HIGH/CRITICAL), OPA/Conftest, Container Structure Test, SBOM |
-| `security-scan.yml` | Nightly (2AM) | Full Trivy scan + Docker Bench Security audit |
-| `release.yml` | Manual | Cosign + DCT sign, SLSA provenance, push, deploy |
-| `multi-arch-builder.yml` | Manual | Verify cross-platform build |
+See `make help` for the full list.
 
 ---
 
-## 🧪 Testing Strategy
+## 🤖 CI/CD Automation
 
-| Test Type | Tool/Script | Coverage |
-|-----------|------------|----------|
-| Static Analysis | Hadolint | Dockerfile best practices |
-| Vulnerability | Trivy | CVE detection (HIGH/CRITICAL) |
-| Policy | OPA/Conftest | Image label + runtime config |
-| Structure | Google Container Structure Tests | File, user, port, size |
-| Integration | `test.sh` | API, DB, Redis, encryption |
-| Chaos | `kill-random-node.sh` + `network-latency.sh` | Self-healing, resilience |
+Everything is automated via GitHub Actions:
 
----
+- **`ci.yml`** – Pull request: multi‑arch build, Hadolint, Trivy (HIGH/CRITICAL), OPA/Conftest, Container Structure Tests, SBOM.
+- **`security-scan.yml`** – Nightly: full Trivy scan + Docker Bench Security audit.
+- **`release.yml`** – Manual trigger: Cosign/DCT sign, SLSA provenance, push, deploy to Swarm.
+- **`multi-arch-builder.yml`** – Verify cross‑platform builds.
+- **`backup.yml`** – Scheduled encrypted backup of swarm state.
 
-## 📊 Performance Benchmarks
-
-| Metric | Value | Notes |
-|--------|-------|-------|
-| Image size (production) | 22.5 MB | Alpine base, multi-stage build |
-| Image build time (CI) | ~6 minutes | Multi-arch (amd64+arm64) |
-| Trivy scan time | ~2 minutes | Full scan |
-| Swarm cluster creation | ~8 minutes | 3 Azure VMs |
-| Stack deploy time | ~30 seconds | Rolling update |
-| IPsec encryption overhead | 5-8% throughput | Measured on B2ats_v2 VMs |
-| Backup size (empty stack) | ~500 KB | Encrypted tarball |
+No manual intervention is needed for day‑2 operations.
 
 ---
 
-## 🔧 Troubleshooting
+## 📚 Documentation
 
-| Problem | Solution |
-|---------|----------|
-| `make infra-up` fails | Check Azure credentials (`az login`), verify quota for B2ats_v2 in your region |
-| `make deploy-stack` fails | Ensure `make setup-tls` ran first; check `docker service ls` for errors |
-| Health check fails | Check if API container is running: `docker service ps swarmfort_api` |
-| Grafana login fails | Default credentials are admin/admin; change via `GF_SECURITY_ADMIN_PASSWORD` env |
-| Backup fails | Verify encryption key is set: `echo $BACKUP_ENCRYPTION_KEY` |
-| Trivy scan exits with error | CVE threshold exceeded; review `trivy-results.sarif` artifact |
-
-For more, see the full [Runbook](docs/runbook.md).
+| Document | Purpose |
+|----------|---------|
+| [Architecture](docs/architecture.md) | Design decisions, C4 diagrams, failure mode analysis |
+| [Security Hardening](docs/security-hardening.md) | Every security layer implemented and justified |
+| [Runbook](docs/runbook.md) | Day‑2 operations: deploy, rollback, backup/restore, alerts |
+| [Trade‑offs](docs/trade-offs.md) | Architecture Decision Records with quantitative criteria |
 
 ---
 
-## 🌍 Multi-Language Support
+## 🌍 Multi‑Language Support
 
-SwarmFort is **language-agnostic**. Replace `app/` with your own application:
+The platform is language‑agnostic. The demo app is Python (FastAPI), but you can replace `app/` with:
 
 | Language | Dockerfile Example | Dependency File |
 |----------|-------------------|-----------------|
 | Python (default) | `Dockerfile` (FastAPI) | `requirements.txt` |
-| Node.js | `FROM node:20-alpine` | `package.json` |
-| Go | `FROM golang:1.21-alpine` | `go.mod` |
-| Java | `FROM eclipse-temurin:17-jre-alpine` | `pom.xml` or `build.gradle` |
+| Node.js | `FROM node:20‑alpine` | `package.json` |
+| Go | `FROM golang:1.21‑alpine` | `go.mod` |
+| Java | `FROM eclipse‑temurin:17‑jre‑alpine` | `pom.xml` |
 
-Only **two requirements**: a `/health` endpoint and a `Dockerfile` that follows the platform's security conventions. Everything else—networking, encryption, monitoring, CI/CD—remains unchanged.
-
----
-
-## 🤝 Contributing
-
-We welcome contributions! Please see:
-
-- [CONTRIBUTING.md](CONTRIBUTING.md) — guidelines and workflow
-- [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) — community standards
-- [SECURITY.md](SECURITY.md) — vulnerability reporting
-
-For major changes, open an issue first to discuss what you'd like to change.
+Only two requirements: a `/health` endpoint and a `Dockerfile` that respects the platform’s security conventions. Everything else—networking, encryption, monitoring, CI/CD—stays the same.
 
 ---
 
-## 📚 Full Documentation
+## 🧪 Testing
 
-| Document | Description |
-|----------|-------------|
-| [Architecture](docs/architecture.md) | Design decisions, diagrams, component map |
-| [Security Hardening](docs/security-hardening.md) | Deep dive into every security feature |
-| [Runbook](docs/runbook.md) | Operational procedures, alerts, recovery |
-| [Trade-offs](docs/trade-offs.md) | Swarm vs K8s, Alpine vs distroless, etc. |
+| Test Type | Tool / Script | Coverage |
+|-----------|---------------|----------|
+| Static Analysis | Hadolint | Dockerfile best practices |
+| Vulnerability | Trivy | CVE detection (HIGH/CRITICAL) |
+| Policy | OPA/Conftest | Image labels + runtime config |
+| Structure | Google Container Structure Tests | File, user, port, image size |
+| Integration | `test.sh` | API, DB, Redis, encryption |
+| Chaos | `kill-random-node.sh`, `network-latency.sh` | Self‑healing, resilience |
+
+Run `make test-all` to execute the complete suite.
+
+---
+
+## 🧑‍💻 Contributing
+
+Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md) for community standards.
 
 ---
 
 ## 📜 License
 
-MIT © SwarmFort Contributors. See [LICENSE](LICENSE).
+This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
 
 ---
 
-## ⭐ Star History
+**SwarmFort** — *Secure by default. Simple by design. Production‑ready in minutes.*
+```
