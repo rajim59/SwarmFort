@@ -1,4 +1,3 @@
-```markdown
 # SwarmFort
 
 **A production-grade Docker Swarm platform with zero‑trust security, supply chain integrity, and full observability — designed for teams that value simplicity over complexity.**
@@ -226,6 +225,3 @@ Contributions are welcome! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for gui
 This project is licensed under the MIT License – see the [LICENSE](LICENSE) file for details.
 
 ---
-
-**SwarmFort** — *Secure by default. Simple by design. Production‑ready in minutes.*
-```
