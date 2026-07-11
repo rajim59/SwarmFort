@@ -2,8 +2,8 @@
 
 **A production-grade Docker Swarm platform with zero‑trust security, supply chain integrity, and full observability — designed for teams that value simplicity over complexity.**
 
-[![CI](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/ci.yml/badge.svg)](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/ci.yml)
-[![Security Scan](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/security-scan.yml/badge.svg)](https://github.com/Mehmed-Hasan-Rajim/SwarmFort/actions/workflows/security-scan.yml)
+[![CI](https://github.com/rajim59/SwarmFort/actions/workflows/ci.yml/badge.svg)](https://github.com/rajim59/SwarmFort/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/rajim59/SwarmFort/actions/workflows/security-scan.yml/badge.svg)](https://github.com/rajim59/SwarmFort/actions/workflows/security-scan.yml)
 [![SLSA Level 2+](https://img.shields.io/badge/SLSA-Level%202%2B-brightgreen)](https://slsa.dev)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Docker Pulls](https://img.shields.io/docker/pulls/mehmedhasanrajim/swarmfort-api)](https://hub.docker.com/r/mehmedhasanrajim/swarmfort-api)
