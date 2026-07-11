@@ -1,97 +1,122 @@
+```markdown
 # SwarmFort Architecture
 
-**A production-grade Docker Swarm platform — C4 Model, design decisions, and failure mode analysis.**
+**A production-grade Docker Swarm platform — C4 Model, design decisions, failure mode analysis, and capacity planning.**
 
 ---
 
-# 1. System Context (C4 Level 1)
+## 1. Overview
+
+SwarmFort transforms a vanilla Docker Swarm cluster into a hardened, observable, and automated application platform. It is designed for teams that need enterprise-grade infrastructure without the operational burden of Kubernetes.
+
+### Design Goals
+- **Security by default**: Defense-in-depth at every layer—network, runtime, supply chain.
+- **Simplicity**: Single-command deployment (`make demo`), no external orchestrator dependencies.
+- **Observability**: Metrics, logs, and alerts integrated into the platform, not bolted on.
+- **Resilience**: Automated backups, rolling updates, and self-healing via Swarm’s native scheduler.
+- **Language-agnostic**: The platform is independent of any specific application language or framework.
+
+---
+
+## 2. C4 Model
+
+### 2.1 System Context (Level 1)
 
 ```mermaid
 graph TB
-
-    User["Developer / End User"]
-    Internet["Internet"]
-    GitHub["GitHub Actions"]
-    Registry["Docker Registry"]
-    SwarmFort["SwarmFort Platform"]
-    S3["S3 Object Storage"]
+    User[👤 Developer / End User]
+    Internet[🌐 Internet]
+    GitHub[🐙 GitHub Actions]
+    DockerHub[📦 Docker Registry]
+    SwarmFort[🛡️ SwarmFort Platform]
+    S3[☁️ S3 / Object Storage]
 
     User -->|HTTPS| Internet
-    Internet -->|TLS 443| SwarmFort
-
-    GitHub -->|CI/CD| Registry
+    GitHub -->|CI/CD Triggers| DockerHub
     GitHub -->|Deploy| SwarmFort
-
-    Registry -->|Pull Images| SwarmFort
-    SwarmFort -->|Encrypted Backups| S3
+    Internet -->|TLS :443| SwarmFort
+    SwarmFort -->|Backup| S3
+    DockerHub -->|Pull Images| SwarmFort
 ```
 
-## External Systems
+**External Systems:**
+- **Developer / End User** — Accesses the API via HTTPS.
+- **GitHub Actions** — CI/CD pipeline; builds, scans, signs, and deploys images.
+- **Docker Registry** — Stores signed, multi-arch images.
+- **S3 / Object Storage** — Stores encrypted backups.
 
-- **Developer / End User** — Accesses APIs and services over HTTPS.
-- **GitHub Actions** — CI/CD pipeline responsible for build, scan, signing, and deployment.
-- **Docker Registry** — Stores versioned container images.
-- **S3 Object Storage** — Stores encrypted backups and archives.
-
----
-
-# 2. Container Diagram (C4 Level 2)
+### 2.2 Container Diagram (Level 2)
 
 ```mermaid
 graph TB
-
-    subgraph SwarmFort_Platform
-
-        subgraph Frontend_Tier
-            Nginx["Nginx Reverse Proxy"]
+    subgraph "SwarmFort Platform"
+        subgraph "Frontend Tier (frontend-net)"
+            Nginx[🐺 Nginx<br/>TLS Termination<br/>Load Balancer]
         end
 
-        subgraph Application_Tier
-            API["FastAPI Service (3 Replicas)"]
+        subgraph "Application Tier (backend-net)"
+            API[🐍 API<br/>FastAPI<br/>3 replicas]
         end
 
-        subgraph Data_Tier
-            DB["PostgreSQL"]
-            Redis["Redis"]
+        subgraph "Data Tier (database-net)"
+            DB[🐘 PostgreSQL<br/>1 replica]
+            Redis[🔴 Redis<br/>1 replica]
         end
 
-        subgraph Monitoring_Tier
-            Prom["Prometheus"]
-            Grafana["Grafana"]
-            Loki["Loki"]
-            cAdvisor["cAdvisor"]
-            NodeExp["Node Exporter"]
-            Fluentd["Fluentd"]
+        subgraph "Monitoring Tier (monitoring-net)"
+            Prom[📊 Prometheus]
+            Grafana[📈 Grafana]
+            Loki[📜 Loki]
+            cAdvisor[📦 cAdvisor]
+            NodeExp[🖥️ Node Exporter]
+            Fluentd[📝 Fluentd]
         end
-
     end
 
-    Internet["Internet"]
-
-    Internet -->|HTTPS| Nginx
+    Internet[🌐 Internet] -->|HTTPS| Nginx
     Nginx -->|Proxy| API
-
     API -->|SQL| DB
     API -->|Cache| Redis
-
     API -->|Metrics| Prom
-
     Prom -->|Dashboards| Grafana
-
     Fluentd -->|Logs| Loki
     cAdvisor -->|Container Metrics| Prom
     NodeExp -->|Host Metrics| Prom
 ```
 
+### 2.3 Deployment Diagram (Node Distribution)
+
+```mermaid
+graph TB
+    subgraph "Manager Node (10.0.1.4)"
+        M_Swarm[🐝 Swarm Manager]
+        M_DB[🐘 PostgreSQL]
+        M_Mon[📊 Prometheus, Grafana, Loki]
+    end
+
+    subgraph "Worker 1 (10.0.1.5)"
+        W1_API[🐍 API Replica 1]
+        W1_Nginx[🐺 Nginx Replica 1]
+        W1_Redis[🔴 Redis]
+    end
+
+    subgraph "Worker 2 (10.0.1.6)"
+        W2_API[🐍 API Replica 2]
+        W2_Nginx[🐺 Nginx Replica 2]
+    end
+```
+
+> **Note:** This is the default placement. Swarm may redistribute based on resource availability and constraints.
+
 ---
 
-# 3. Sequence Diagram - User Request Flow
+## 3. Sequence Diagrams
+
+### 3.1 User Request Flow
 
 ```mermaid
 sequenceDiagram
-
     actor User
-
     participant DNS
     participant Nginx
     participant API
@@ -101,219 +126,286 @@ sequenceDiagram
 
     User->>DNS: Resolve swarmfort.example.com
     DNS-->>User: Manager Node IP
-
-    User->>Nginx: HTTPS Request
-
+    User->>Nginx: HTTPS GET /api/data
     Nginx->>Nginx: TLS Termination
-
-    Nginx->>API: Proxy Request
-
-    API->>Redis: Check Cache
-
+    Nginx->>API: HTTP Proxy (backend-net)
+    API->>Redis: Check Cache (database-net)
     alt Cache Hit
-
-        Redis-->>API: Cached Response
-
+        Redis-->>API: Return Cached Data
     else Cache Miss
-
-        API->>DB: SQL Query
-        DB-->>API: Query Result
-
-        API->>Redis: Store Cache
-
+        API->>DB: SQL Query (database-net)
+        DB-->>API: Return Result
+        API->>Redis: Update Cache
     end
-
     API-->>Nginx: JSON Response
     Nginx-->>User: HTTPS Response
-
-    API->>Prometheus: Export Metrics
+    API->>Prometheus: Record Metrics (/metrics)
 ```
 
----
-
-# 4. Sequence Diagram - CI/CD Deployment Flow
+### 3.2 CI/CD Deployment Flow
 
 ```mermaid
 sequenceDiagram
-
     actor Dev as Developer
+    participant Git as GitHub
+    participant CI as GitHub Actions
+    participant Registry as Docker Registry
+    participant Swarm as Swarm Manager
+    participant Node as Swarm Worker
 
-    participant GitHub
-    participant Actions
-    participant Registry
-    participant SwarmManager
-    participant WorkerNode
+    Dev->>Git: git push (PR)
+    Git->>CI: Trigger ci.yml
+    CI->>CI: Build (multi-arch)
+    CI->>CI: Hadolint
+    CI->>CI: Trivy Scan
+    CI->>CI: OPA/Conftest
+    CI->>CI: Structure Tests
+    CI->>CI: Generate SBOM
 
-    Dev->>GitHub: Push Code
-
-    GitHub->>Actions: Trigger CI Pipeline
-
-    Actions->>Actions: Build Multi-Architecture Image
-    Actions->>Actions: Run Hadolint
-    Actions->>Actions: Run Trivy Scan
-    Actions->>Actions: Run OPA Validation
-    Actions->>Actions: Run Structure Tests
-    Actions->>Actions: Generate SBOM
-
-    Dev->>GitHub: Merge Pull Request
-
-    GitHub->>Actions: Trigger Release Pipeline
-
-    Actions->>Registry: Push Signed Image
-    Actions->>Registry: Upload SLSA Provenance
-
-    Actions->>SwarmManager: Deploy Stack
-
-    SwarmManager->>WorkerNode: Rolling Update
-
-    WorkerNode-->>SwarmManager: Healthy
-
-    SwarmManager-->>Actions: Deployment Successful
+    Dev->>Git: Merge PR
+    Git->>CI: Trigger release.yml (manual)
+    CI->>CI: Build & Push Image
+    CI->>Registry: Push signed image (Cosign + DCT)
+    CI->>Registry: Attach SLSA Provenance
+    CI->>Swarm: SSH → docker stack deploy
+    Swarm->>Node: Schedule API tasks (rolling update)
+    Swarm->>Node: Health check
+    Node-->>Swarm: Running (healthy)
+    Swarm-->>CI: Deployment Successful
 ```
 
 ---
 
-# 5. Failure Mode Analysis
+## 4. Component Breakdown
 
-| Failure Scenario | Impact | Mitigation | Recovery Time |
-|------------------|---------|------------|---------------|
-| Manager Node Down | Swarm control plane unavailable while running services continue | Multiple managers recommended; restore from backup | Approximately 10 minutes |
-| Worker Node Down | Services rescheduled to remaining nodes | Swarm self-healing | Approximately 30 seconds |
-| PostgreSQL Crash | Database-dependent APIs unavailable | Health checks and persistent volumes | Approximately 30 seconds |
-| Redis Crash | Increased API latency due to cache misses | Automatic restart | Approximately 30 seconds |
-| Nginx Configuration Error | Reverse proxy unavailable | Rolling update rollback | Approximately 20 seconds |
-| Docker Daemon Crash | Containers on node affected | Enable live-restore | Approximately 5 seconds |
-| Overlay Encryption Key Exposure | Network confidentiality risk | Rotate overlay network encryption | Approximately 5 minutes |
-| Registry Unavailable | New deployments blocked | Local image cache | Depends on registry recovery |
+### 4.1 Ingress & Load Balancing
+**Component:** Nginx
+- Terminates TLS using certificates stored as Docker secrets (`site.crt`, `site.key`).
+- Routes HTTP → HTTPS (301 redirect).
+- Proxies API requests to the `api` service via Swarm’s internal DNS.
+- Health-checked by Swarm: `wget --spider http://localhost/health` every 30s.
+
+### 4.2 Application Layer
+**Component:** API (Python FastAPI)
+- Stateless, horizontally scalable (3 replicas).
+- Exposes `/health`, `/ping`, `/metrics` (Prometheus), `/db-health`.
+- Connected to both `backend-net` (receives traffic) and `database-net` (accesses DB/Redis).
+- Rolling updates: parallelism 1, delay 10s, failure-action rollback.
+
+### 4.3 Data Layer
+**PostgreSQL**
+- Single replica (stateful, placed on manager node initially).
+- Password via Docker secret (`db_password`).
+- Volume: `pgdata` for persistence.
+- Health check: `pg_isready -U user -d mydb`.
+
+**Redis**
+- Single replica, used for caching.
+- Password via Docker secret (`api_key`).
+- Health check: `redis-cli ping`.
+
+### 4.4 Observability Stack
+| Service | Role | Port | Data Source |
+|---------|------|------|-------------|
+| Prometheus | Metrics aggregation | 9090 | cAdvisor, Node Exporter, API `/metrics` |
+| Grafana | Dashboards (RED + Resource) | 3000 | Prometheus |
+| Loki | Log aggregation | 3100 | Fluentd, Docker event exporter |
+| cAdvisor | Container metrics | 8080 | Docker daemon |
+| Node Exporter | Host metrics | 9100 | `/proc`, `/sys` |
+| Fluentd | Log forwarder | 24224 | Docker log driver → Loki |
+| Docker Events Exporter | Swarm event streaming | - | Docker socket → Loki |
+
+### 4.5 Security Components
+| Component | Location | Function |
+|-----------|----------|----------|
+| Seccomp profile | `infra/security/seccomp-profiles/custom-seccomp.json` | Whitelists ~300 syscalls for API containers |
+| AppArmor profile | `infra/security/apparmor-profiles/usr.bin.custom-app` | Mandatory access control for Python binary |
+| OPA Image Policy | `infra/security/opa-policies/image-policy.rego` | Enforces `com.example.sec-approved=true` label |
+| OPA Runtime Policy | `infra/security/opa-policies/runtime-policy.rego` | Enforces capabilities, read-only rootfs, no-new-privileges |
+| DCT Delegation | `infra/security/content-trust/delegation-roles.json` | Offline root key, signer/releaser roles |
+| SLSA Policy | `infra/security/slsa-provenance-policy.yaml` | Verifies provenance attestations |
+| Docker Bench | `infra/security/docker-bench-security.sh` | CIS benchmark audit |
+| Auditd Rules | `infra/security/docker-audit.rules` | Monitors Docker binary, socket, configs |
+
+### 4.6 Operational Tooling
+| Script | Purpose |
+|--------|---------|
+| `backup-swarm.sh` | Encrypts `/var/lib/docker/swarm` → `.tar.gz.gpg` |
+| `restore-swarm.sh` | Decrypts and restores swarm state + volumes |
+| `rotate-secrets.sh` | Rotates DB password and API key with zero downtime |
+| `overlay-encryption-rotation.sh` | Creates new encrypted network, migrates services, removes old one |
+| `cleanup-disk.sh` | Prunes resources older than 72 hours |
+| `cleanup-cron-setup.sh` | Schedules disk cleanup at 2AM via cron |
+| `promote-canary.sh` | Shifts traffic to canary, checks Prometheus error rate, promotes or rolls back |
+| `diagnostic.sh` | Collects system state during incidents (nodes, services, targets, disk, memory) |
 
 ---
 
-# 6. Capacity and Scalability
-
-| Metric | Current Capacity | Scaling Strategy |
-|----------|----------------|------------------|
-| Nodes | 3 | Add additional worker nodes |
-| API Replicas | 3 | Increase replica count |
-| Database Connections | 100 | PgBouncer connection pooling |
-| Redis Memory | 256 MB | Vertical or clustered scaling |
-| Containers Per Node | Approximately 100 | Upgrade VM size |
-| Network Throughput | Approximately 1 Gbps | Larger VM SKU |
-| Log Retention | 7 Days | S3-backed storage |
-| Backup Retention | 30 Days | Lifecycle archive policies |
-
----
-
-# 7. Deployment Diagram
+## 5. Security Architecture (Defense in Depth)
 
 ```mermaid
-graph TB
-
-    subgraph Manager_Node
-
-        SwarmManager["Swarm Manager"]
-        PostgreSQL["PostgreSQL"]
-        Monitoring["Prometheus Grafana Loki"]
-
+graph TD
+    subgraph Supply Chain
+        SC1[DCT Signing]
+        SC2[Cosign Signing]
+        SC3[Trivy Scan]
+        SC4[SBOM Generation]
+        SC5[OPA Image Policy]
     end
 
-    subgraph Worker_Node_1
-
-        API1["API Replica 1"]
-        Nginx1["Nginx Replica 1"]
-        Redis["Redis"]
-
+    subgraph Runtime
+        RT1[Non-root User]
+        RT2[Seccomp Profile]
+        RT3[AppArmor Profile]
+        RT4[Capability Drop]
+        RT5[no-new-privileges]
+        RT6[Read-only Rootfs]
+        RT7[User Namespace Remap]
     end
 
-    subgraph Worker_Node_2
-
-        API2["API Replica 2"]
-        Nginx2["Nginx Replica 2"]
-
+    subgraph Network
+        NW1[IPsec Overlay Encryption]
+        NW2[Network Isolation - 3 Tiers]
+        NW3[TLS Termination - Nginx]
+        NW4[Minimal Port Exposure]
     end
 
-    SwarmManager --> API1
-    SwarmManager --> API2
+    subgraph Data at Rest
+        DR1[Encrypted Backups - GPG]
+        DR2[Docker Secrets]
+        DR3[Auditd Monitoring]
+    end
+
+    SC1 --> RT1
+    SC2 --> RT1
+    SC3 --> RT1
+    SC4 --> RT1
+    SC5 --> RT1
+    RT1 --> NW1
+    RT2 --> NW1
+    RT3 --> NW1
+    RT4 --> NW1
+    RT5 --> NW1
+    RT6 --> NW1
+    RT7 --> NW1
+    NW1 --> DR1
+    NW2 --> DR1
+    NW3 --> DR1
+    NW4 --> DR1
 ```
 
-> Swarm may redistribute workloads dynamically based on scheduling decisions and resource availability.
+---
+
+## 6. Failure Mode Analysis
+
+| Failure Scenario | Impact | Mitigation | Recovery Time |
+|-----------------|--------|------------|---------------|
+| **Manager Node Down** | Swarm control plane unavailable; existing services continue running | Multiple managers (future); `backup-swarm.sh` for fast recovery | ~10 min (restore from backup) |
+| **Worker Node Down** | Services reschedule to remaining nodes | Swarm self-healing; `kill-random-node.sh` chaos test validates this | ~30 sec (Swarm reschedule) |
+| **PostgreSQL Crash** | API returns 500 for DB-dependent endpoints | Health check (`pg_isready`) triggers restart; volume persistence | ~30 sec (container restart) |
+| **Redis Crash** | Cache misses; API still functional but slower | Health check triggers restart; stateless | ~30 sec |
+| **Nginx Config Error** | 502 Bad Gateway for all requests | Rolling update failure_action=rollback; previous config restored | ~20 sec (rollback) |
+| **Docker Daemon Crash** | All containers on that node stop | `live-restore: true` in daemon.json; containers continue running during daemon restart | ~5 sec (daemon restart) |
+| **IPsec Key Compromise** | Overlay traffic potentially decryptable | `overlay-encryption-rotation.sh` creates new network, migrates services | ~5 min (automated rotation) |
+| **Registry Unavailable** | Cannot pull new images; existing containers unaffected | Docker Hub/self-hosted registry HA; local image cache on nodes | Varies (depends on registry recovery) |
+| **Disk Full** | Services cannot write logs/data; images cannot be pulled | `cleanup-disk.sh` or expand disk in Azure | ~5 min (cleanup) or ~15 min (disk expansion) |
+| **OOM Kill** | Container terminated; service may degrade | Increase memory limits, scale replicas; SLO alert triggers | ~1 min (container restart) |
 
 ---
 
-# 8. Cost Estimation (Azure Malaysia)
+## 7. Capacity & Scalability
 
-| Resource | Configuration | Monthly Cost |
-|-----------|--------------|--------------|
-| Virtual Machines | 3 x B2ats_v2 | USD 90 |
-| Managed Disks | 3 x 30 GB SSD | USD 15 |
-| Public IP | Static | USD 5 |
-| Bandwidth | 100 GB | USD 10 |
-| Total | Estimated | USD 120 |
-
-> Costs vary by region, discounts, and resource consumption.
-
----
-
-# 9. Architecture Decision Records
-
-| ID | Decision | Reason |
-|------|---------|---------|
-| ADR-001 | Docker Swarm | Simpler than Kubernetes |
-| ADR-002 | Alpine Images | Smaller footprint |
-| ADR-003 | Nginx | Mature reverse proxy |
-| ADR-004 | Prometheus Stack | Open-source monitoring |
-| ADR-005 | GPG Encryption | Cloud-independent |
-| ADR-006 | Overlay Encryption | Native Swarm support |
+| Metric | Current Limit | Scaling Strategy |
+|--------|--------------|------------------|
+| **Nodes** | 3 (1 manager + 2 workers) | Add workers via `join-worker.sh`; promote additional managers for HA |
+| **API Replicas** | 3 (configurable) | Increase `replicas` in stack; Swarm load balances automatically |
+| **Database Connections** | PostgreSQL default (100) | Connection pooling via PgBouncer; vertical scaling for DB VM |
+| **Redis Memory** | 256 MB limit | Vertical scaling; or Redis Cluster for horizontal scaling |
+| **Max Containers** | ~100 per node (B2ats_v2) | Upgrade VM SKU; distribute services across more nodes |
+| **Network Throughput** | ~1 Gbps (Azure B2ats_v2) | Upgrade VM size; IPsec overhead ~5-8% |
+| **Log Retention** | Loki: 7 days (default) | Increase `retention_period` in Loki config; add S3 backend |
+| **Backup Retention** | 30 days (local) | S3 lifecycle policy for long-term archival |
 
 ---
 
-# 10. Technology Stack
+## 8. Design Decisions & Trade-offs
+
+| Decision | Alternative | Rationale |
+|----------|-------------|-----------|
+| Docker Swarm | Kubernetes | Built-in, zero external dependencies, simpler operations; ideal for teams < 50 engineers |
+| Alpine base image | Distroless | Smaller (< 25MB) while still providing a package manager for debugging |
+| Nginx | Traefik | More mature, easier to customize for TLS termination and upstream routing |
+| Prometheus stack | Datadog, New Relic | No vendor lock-in, no licensing cost, works natively with Swarm service discovery |
+| Loki + Fluentd | ELK Stack | Lighter weight, integrates natively with Grafana, same stack as metrics |
+| Ansible (primary GitOps) | Flux CD | Ansible can directly manage Docker Swarm; Flux is optional for Kubernetes-style GitOps |
+| GPG symmetric encryption (backups) | Cloud KMS | Simpler, portable across clouds; easy to integrate with any S3-compatible storage |
+| Self-signed certificates (dev) | Let's Encrypt | Suitable for development; production should use cert-manager or Let's Encrypt with DNS challenge |
+
+---
+
+## 9. Architecture Decision Records (ADR)
+
+| ID | Title | Decision | Rationale |
+|----|-------|----------|-----------|
+| ADR-001 | Swarm over Kubernetes | Use Docker Swarm | Simpler, built-in, no etcd; sufficient for teams < 50 |
+| ADR-002 | Alpine over Distroless | Use Alpine as base | Smaller than distroless, package manager for debugging |
+| ADR-003 | Nginx over Traefik | Use Nginx | More mature, easier custom config |
+| ADR-004 | Prometheus over Datadog | Use Prometheus stack | Open source, no vendor lock-in, Swarm-native |
+| ADR-005 | GPG over Cloud KMS | Use GPG symmetric | Portable across clouds, simpler key management |
+| ADR-006 | IPsec over mTLS | Use IPsec overlay encryption | Built into Swarm, no sidecar needed, transparent to apps |
+
+> Full ADR documents available in `docs/adr/` directory.
+
+---
+
+## 10. Cost Estimation (Azure - Malaysia West)
+
+| Resource | SKU | Monthly Cost (USD) |
+|----------|-----|-------------------|
+| 3 × VMs (B2ats_v2) | 2 vCPU, 4 GB RAM | ~$90 |
+| 3 × Managed Disks (30 GB) | Standard SSD | ~$15 |
+| Public IP | Static | ~$5 |
+| Bandwidth (outbound) | ~100 GB estimated | ~$10 |
+| **Total (estimated)** | | **~$120/month** |
+
+> Costs are approximate and vary by region, usage, and reserved instance discounts.
+
+---
+
+## 11. Technology Stack
 
 | Category | Technology | Version |
-|------------|------------|----------|
+|----------|-----------|---------|
 | Orchestrator | Docker Swarm | 24+ |
-| Reverse Proxy | Nginx | Alpine |
-| Application | FastAPI | Python 3.12 |
+| Ingress | Nginx | Alpine |
+| Application | Python FastAPI | 3.12 |
 | Database | PostgreSQL | 15 |
 | Cache | Redis | 7 |
 | Metrics | Prometheus | Latest |
-| Dashboard | Grafana | Latest |
-| Logging | Loki | Latest |
-| Log Shipping | Fluentd | 1.16 |
+| Dashboards | Grafana | Latest |
+| Logs | Loki | Latest |
+| Log Shipper | Fluentd | v1.16 |
 | Container Metrics | cAdvisor | Latest |
 | Host Metrics | Node Exporter | Latest |
-| Infrastructure as Code | Terraform | 1.5+ |
-| CI/CD | GitHub Actions | Current |
-| Image Signing | Cosign and DCT | Current |
-| Provenance | SLSA | Level 2+ |
-| Security Scanning | Trivy | Latest |
-| Policy Validation | OPA Conftest | Latest |
-| GitOps | Ansible | Current |
+| IaC | Terraform | 1.5+ |
+| CI/CD | GitHub Actions | - |
+| Signing | Cosign, DCT | - |
+| Provenance | SLSA | L2+ |
+| Security Scan | Trivy | Latest |
+| Policy Engine | OPA/Conftest | Latest |
+| GitOps | Ansible (primary), Flux (optional) | - |
 
 ---
 
-# 11. Future Roadmap
+## 12. Future Considerations
 
-- Automatic horizontal scaling
-- Let's Encrypt integration
-- PostgreSQL high availability
-- Multi-cloud deployment modules
-- Service mesh support
-- Distributed tracing with OpenTelemetry
-- Long-term log archival
-- Disaster recovery automation
+- **Auto-scaling**: Docker Swarm autoscaler with Prometheus metrics triggers.
+- **Let's Encrypt**: Replace self-signed certificates with cert-manager or ACME client.
+- **PostgreSQL HA**: Patroni or pgpool for automatic failover.
+- **Multi-cloud**: Terraform modules for AWS, GCP, on-premise.
+- **Service Mesh**: Istio or Consul Connect for mTLS (currently IPsec suffices).
+- **Distributed Tracing**: OpenTelemetry + Jaeger/Tempo.
 
 ---
 
-# Summary
-
-SwarmFort is a production-focused Docker Swarm platform emphasizing:
-
-- Secure CI/CD pipelines
-- Signed container images
-- Infrastructure as Code
-- Automated recovery
-- Observability
-- Backup and disaster recovery
-- Future scalability
-
-The architecture prioritizes operational simplicity while maintaining production-grade reliability and security.
+**SwarmFort Architecture** — Designed for simplicity, hardened for production, documented for engineers.
