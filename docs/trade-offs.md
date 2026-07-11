@@ -1,4 +1,3 @@
-```markdown
 # SwarmFort Trade-offs
 
 **Architecture Decision Records (ADR) — every significant technology choice documented with context, data, alternatives, rationale, and consequences.**
