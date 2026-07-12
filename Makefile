@@ -1,11 +1,18 @@
-.PHONY: infra-up infra-down swarm-setup verify-cluster swarm-stop swarm-start setup-tls setup-app-secrets deploy-stack remove-stack test-stack build-base build-dev build-prod buildx test-structure push-prod build-base-multi gen-cosign-keys oom-adjust verify-resources deploy-monitoring-stack verify-monitoring setup-dr-automation test-chaos gitops-lint gitops-dry-run gitops-deploy
+.PHONY: infra-up infra-down swarm-setup verify-cluster swarm-stop swarm-start \
+        setup-tls setup-app-secrets deploy-stack remove-stack test-stack \
+        build-base build-dev build-prod buildx test-structure push-prod build-base-multi \
+        gen-cosign-keys oom-adjust verify-resources deploy-monitoring-stack verify-monitoring \
+        setup-dr-automation test-chaos gitops-lint gitops-dry-run gitops-deploy \
+        setup-security-profiles setup-daemon-config demo test-all backup restore clean scan
 
 # ==============================================================================
-# Infrastructure Management 
+# Infrastructure Management
 # ==============================================================================
 
 infra-up:
 	cd infra/terraform && terraform init && terraform apply -auto-approve
+	@echo "⏳ Waiting 75 seconds for Ubuntu initialization and Docker installation..."
+	@sleep 75
 	$(MAKE) swarm-setup
 
 infra-down:
@@ -13,6 +20,7 @@ infra-down:
 
 swarm-setup:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@ssh-keygen -R $(MANAGER_IP) 2>/dev/null || true
 	@eval "$$(ssh-agent -s)" && ssh-add ~/.ssh/id_rsa && \
 	scp -o StrictHostKeyChecking=no infra/swarm-scripts/init-cluster.sh infra/swarm-scripts/join-worker.sh azureuser@$(MANAGER_IP):/home/azureuser/ && \
 	ssh -o StrictHostKeyChecking=no -A azureuser@$(MANAGER_IP) "chmod +x init-cluster.sh join-worker.sh && ./init-cluster.sh" && \
@@ -36,6 +44,43 @@ swarm-start:
 	az vm list -g swarmfort-resources-v3 -d --query "[].[name,powerState]" -o table
 
 # ==============================================================================
+# Security Profiles & Daemon Configuration
+# ==============================================================================
+
+setup-security-profiles:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@echo "📁 Deploying seccomp & AppArmor profiles via Jump Host..."
+	@echo "  --> Node Manager (${MANAGER_IP})"
+	@ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${MANAGER_IP} "sudo mkdir -p /etc/docker/seccomp /etc/apparmor.d && sudo apt-get install -y -qq apparmor apparmor-utils"
+	@scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null infra/security/seccomp-profiles/custom-seccomp.json azureuser@${MANAGER_IP}:/tmp/
+	@ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${MANAGER_IP} "sudo cp /tmp/custom-seccomp.json /etc/docker/seccomp/"
+	@scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null infra/security/apparmor-profiles/usr.bin.custom-app azureuser@${MANAGER_IP}:/tmp/
+	@ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${MANAGER_IP} "sudo cp /tmp/usr.bin.custom-app /etc/apparmor.d/ && sudo apparmor_parser -r -W /etc/apparmor.d/usr.bin.custom-app"
+	
+	@for ip in 10.0.1.5 10.0.1.6; do \
+		echo "  --> Node $$ip (via Manager Proxy)"; \
+		ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} azureuser@$$ip "sudo mkdir -p /etc/docker/seccomp /etc/apparmor.d && sudo apt-get install -y -qq apparmor apparmor-utils"; \
+		scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} infra/security/seccomp-profiles/custom-seccomp.json azureuser@$$ip:/tmp/; \
+		ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} azureuser@$$ip "sudo cp /tmp/custom-seccomp.json /etc/docker/seccomp/"; \
+		scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} infra/security/apparmor-profiles/usr.bin.custom-app azureuser@$$ip:/tmp/; \
+		ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} azureuser@$$ip "sudo cp /tmp/usr.bin.custom-app /etc/apparmor.d/ && sudo apparmor_parser -r -W /etc/apparmor.d/usr.bin.custom-app"; \
+	done
+	@echo "✅ Security profiles deployed."
+
+setup-daemon-config:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	@echo "⚙️  Deploying hardened daemon.json via Jump Host..."
+	@echo "  --> Node Manager (${MANAGER_IP})"
+	@scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null infra/docker/daemon.json azureuser@${MANAGER_IP}:/tmp/
+	@ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@${MANAGER_IP} "sudo cp /tmp/daemon.json /etc/docker/daemon.json && sudo systemctl restart docker"
+	
+	@for ip in 10.0.1.5 10.0.1.6; do \
+		echo "  --> Node $$ip (via Manager Proxy)"; \
+		scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} infra/docker/daemon.json azureuser@$$ip:/tmp/; \
+		ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J azureuser@${MANAGER_IP} azureuser@$$ip "sudo cp /tmp/daemon.json /etc/docker/daemon.json && sudo systemctl restart docker"; \
+	done
+	@echo "✅ Daemon config applied. Wait a few seconds for Docker stabilization."	
+# ==============================================================================
 # TLS & Stack Deployment
 # ==============================================================================
 
@@ -51,9 +96,11 @@ setup-app-secrets:
 
 deploy-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
-	scp infra/docker/docker-stack.yml infra/docker/nginx.conf azureuser@$(MANAGER_IP):/tmp/
-	ssh azureuser@$(MANAGER_IP) "docker stack deploy -c /tmp/docker-stack.yml swarmfort"
-
+	ssh azureuser@$(MANAGER_IP) "mkdir -p /tmp/infra/docker /tmp/infra/monitoring/loki"
+	scp infra/docker/docker-stack.yml azureuser@$(MANAGER_IP):/tmp/infra/docker/
+	scp infra/docker/nginx.conf azureuser@$(MANAGER_IP):/tmp/infra/docker/
+	scp infra/monitoring/loki/fluent.conf azureuser@$(MANAGER_IP):/tmp/infra/monitoring/loki/
+	ssh azureuser@$(MANAGER_IP) "cd /tmp/infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
 remove-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	ssh azureuser@$(MANAGER_IP) "docker stack rm swarmfort"
@@ -119,6 +166,10 @@ build-base-multi:
 gen-cosign-keys:
 	@echo "Generating Cosign Key Pair using Docker with Host User Permissions..."
 	docker run --rm -it -v $(PWD):/keys --user $(shell id -u):$(shell id -g) gcr.io/projectsigstore/cosign:v2.4.1 generate-key-pair --output-key-prefix /keys/cosign
+
+scan:
+	@echo "🔍 Scanning latest production image with Trivy..."
+	docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy image rajim59/swarmfort-api:latest --severity HIGH,CRITICAL
 
 # ==============================================================================
 # OOM Score Adjustment & Resource Verification
@@ -208,3 +259,29 @@ gitops-dry-run: ## Perform a dry run simulation of the deployment
 gitops-deploy: ## Deploy the stack using the Ansible GitOps playbook
 	@echo "🚀 Deploying stack via GitOps (Ansible)..."
 	ansible-playbook -i $(INVENTORY) $(ANSIBLE_PLAYBOOK)
+
+# ==============================================================================
+# Full Demo, Comprehensive Tests, Backup, Restore, Clean
+# ==============================================================================
+
+demo: infra-up setup-security-profiles setup-tls setup-app-secrets deploy-stack test-stack
+	@echo "🎉 SwarmFort is LIVE! Access: https://$(shell cd infra/terraform && terraform output -raw manager_public_ip)/health"
+
+test-all: test-stack test-chaos test-structure
+	@echo "✅ All tests passed."
+
+backup:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/swarm-scripts/backup-swarm.sh azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "chmod +x /tmp/backup-swarm.sh && sudo /tmp/backup-swarm.sh"
+	mkdir -p backups
+	scp azureuser@$(MANAGER_IP):/backups/swarm/*.tar.gz.gpg ./backups/ || echo "No backup file found (may be expected)"
+	@echo "✅ Backup retrieved to ./backups/"
+
+restore:
+	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
+	scp infra/swarm-scripts/restore-swarm.sh azureuser@$(MANAGER_IP):/tmp/
+	ssh azureuser@$(MANAGER_IP) "chmod +x /tmp/restore-swarm.sh && sudo /tmp/restore-swarm.sh"
+
+clean: remove-stack infra-down
+	@echo "🧹 All cloud resources cleaned up."

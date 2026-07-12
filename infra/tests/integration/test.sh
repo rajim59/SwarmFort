@@ -6,8 +6,8 @@ echo "=== Integration Tests (Network, TLS & Image Size) ==="
 echo "--- Testing Production Image Size (Req 5) ---"
 
 # Verify that the image exists on the manager node before inspection
-if docker image inspect myrepo/swarmfort-api:latest >/dev/null 2>&1; then
-    IMAGE_SIZE=$(docker inspect myrepo/swarmfort-api:latest --format='{{.Size}}')
+if docker image inspect rajim59/swarmfort-api:latest >/dev/null 2>&1; then
+    IMAGE_SIZE=$(docker inspect rajim59/swarmfort-api:latest --format='{{.Size}}')
     SIZE_MB=$((IMAGE_SIZE / 1000000))
 
     if [ "$SIZE_MB" -lt 25 ]; then
@@ -17,7 +17,7 @@ if docker image inspect myrepo/swarmfort-api:latest >/dev/null 2>&1; then
         exit 1
     fi
 else
-    echo "⚠ Image myrepo/swarmfort-api:latest not found. Please build it first."
+    echo "⚠ Image rajim59/swarmfort-api:latest not found. Please build it first."
 fi
 
 echo "--- Testing encrypted overlay network ---"
@@ -36,7 +36,7 @@ sleep 45
 echo "--- Testing Nginx TLS Termination & API Ingress ---"
 echo "Checking HTTPS response from Swarm Ingress..."
 
-if curl -4 -k -s -f https://localhost/ > /dev/null; then
+if curl -4 -k -s -f https://localhost:8443/ > /dev/null; then
     echo "✓ TLS Verification Success (Nginx is serving via HTTPS)"
     echo "=== ALL INTEGRATION TESTS PASSED (100/100) ==="
 else

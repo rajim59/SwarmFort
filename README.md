@@ -118,7 +118,7 @@ The complete component map and design decisions are documented in **[docs/archit
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/Mehmed-Hasan-Rajim/SwarmFort.git
+git clone https://github.com/rajim59/SwarmFort.git
 cd SwarmFort
 ```
 

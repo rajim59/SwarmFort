@@ -92,9 +92,6 @@ resource "azurerm_network_security_group" "swarm_nsg" {
     destination_address_prefix = "*"
   }
 
-  # ==========================================
-  # NEW RULE: ALLOW PROMETHEUS (PORT 9090)
-  # ==========================================
   security_rule {
     name                       = "AllowPrometheus"
     priority                   = 140
@@ -104,6 +101,18 @@ resource "azurerm_network_security_group" "swarm_nsg" {
     source_port_range          = "*"
     destination_port_range     = "9090"
     source_address_prefix      = "*"
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "AllowFluentdForward"
+    priority                   = 150
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "24224"
+    source_address_prefix      = "10.0.0.0/16"
     destination_address_prefix = "*"
   }
 
@@ -192,18 +201,65 @@ resource "azurerm_network_interface_security_group_association" "worker_assoc" {
 }
 
 locals {
-  docker_install_script = <<-EOF
-    #!/bin/bash
-    set -e
-    export DEBIAN_FRONTEND=noninteractive
-    curl -fsSL https://get.docker.com | sh
-    sudo usermod -aG docker \${var.admin_username}
-    sudo systemctl enable docker
-    sudo systemctl start docker
-    echo "vm.max_map_count=262144" | sudo tee -a /etc/sysctl.conf
-    sudo sysctl -p
-  EOF
+  docker_install_and_harden = <<EOF
+#!/bin/bash
+# SwarmFort - Swarm Compatible Hardened Docker Installation Script
+exec > /var/log/docker-setup-custom.log 2>&1
+set -x
+
+export DEBIAN_FRONTEND=noninteractive
+
+echo "⏳ Waiting for Ubuntu background updates to release apt lock..."
+while fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1 ; do sleep 2; done
+while fuser /var/lib/apt/lists/lock >/dev/null 2>&1 ; do sleep 2; done
+
+echo "🧹 Removing old/broken Docker versions..."
+apt-get remove -y docker docker-engine docker.io containerd runc || true
+
+echo "📦 Installing prerequisites..."
+apt-get update -qq
+apt-get install -y -qq ca-certificates curl gnupg lsb-release apparmor apparmor-utils
+
+echo "🔑 Setting up Docker GPG key..."
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+chmod a+r /etc/apt/keyrings/docker.gpg
+
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+
+echo "🚀 Installing Docker Engine..."
+apt-get update -qq
+apt-get install -y -qq docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+echo "👤 Adding admin user to docker group..."
+usermod -aG docker ${var.admin_username}
+
+echo "⚙️ Configuring daemon.json for Swarm compatibility..."
+mkdir -p /etc/docker
+cat <<JSON > /etc/docker/daemon.json
+{
+  "exec-opts": ["native.cgroupdriver=systemd"],
+  "live-restore": false,
+  "log-driver": "json-file",
+  "log-opts": { "max-size": "10m", "max-file": "3" },
+  "userland-proxy": false
 }
+JSON
+
+echo "🔄 Starting Docker Service..."
+systemctl daemon-reload
+systemctl enable docker
+systemctl restart docker
+
+echo "🧠 Tuning Kernel..."
+echo "vm.max_map_count=262144" >> /etc/sysctl.conf
+sysctl -p
+
+echo "✅ Docker setup completed successfully!"
+EOF
+}
+
+
 
 resource "azurerm_linux_virtual_machine" "manager" {
   name                = "swarm-manager-1"
@@ -231,7 +287,7 @@ resource "azurerm_linux_virtual_machine" "manager" {
   }
 
   network_interface_ids = [azurerm_network_interface.manager_nic.id]
-  custom_data           = base64encode(local.docker_install_script)
+  custom_data           = base64encode(local.docker_install_and_harden)
 
   depends_on = [azurerm_network_interface_security_group_association.manager_assoc]
 }
@@ -263,7 +319,7 @@ resource "azurerm_linux_virtual_machine" "workers" {
   }
 
   network_interface_ids = [azurerm_network_interface.worker_nic[count.index].id]
-  custom_data           = base64encode(local.docker_install_script)
+  custom_data           = base64encode(local.docker_install_and_harden)
 
   depends_on = [azurerm_network_interface_security_group_association.worker_assoc]
 }
