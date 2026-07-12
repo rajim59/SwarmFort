@@ -84,6 +84,7 @@ setup-daemon-config:
 # TLS & Stack Deployment
 # ==============================================================================
 
+
 setup-tls:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	scp infra/swarm-scripts/generate-certs.sh azureuser@$(MANAGER_IP):/tmp/
