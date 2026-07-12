@@ -422,3 +422,4 @@ volumes:
       type: tmpfs
       device: tmpfs
   fluentd_buffer:
+  
