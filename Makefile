@@ -97,11 +97,10 @@ setup-app-secrets:
 
 deploy-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
-	ssh azureuser@$(MANAGER_IP) "mkdir -p /tmp/infra/docker /tmp/infra/monitoring/loki"
-	scp infra/docker/docker-stack.yml azureuser@$(MANAGER_IP):/tmp/infra/docker/
-	scp infra/docker/nginx.conf azureuser@$(MANAGER_IP):/tmp/infra/docker/
-	scp infra/monitoring/loki/fluent.conf azureuser@$(MANAGER_IP):/tmp/infra/monitoring/loki/
-	ssh azureuser@$(MANAGER_IP) "cd /tmp/infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
+	@echo "📦 Packaging and Transferring infrastructure files..."
+	tar -czf /tmp/infra.tar.gz infra/
+	scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null /tmp/infra.tar.gz azureuser@$(MANAGER_IP):/tmp/
+	ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null azureuser@$(MANAGER_IP) "cd /tmp && tar -xzf infra.tar.gz && cd infra/docker && docker stack deploy -c docker-stack.yml swarmfort"
 remove-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	ssh azureuser@$(MANAGER_IP) "docker stack rm swarmfort"
