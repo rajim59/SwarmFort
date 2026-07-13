@@ -38,13 +38,10 @@ configs:
     file: ../monitoring/prometheus/alert-rules.yml
   loki_config:
     file: ../monitoring/loki/loki-config.yml
-  fluent_conf:
-    file: ../monitoring/loki/fluent.conf
 
 services:
   nginx:
     image: nginxinc/nginx-unprivileged:alpine
-    init: true
     networks:
       - frontend-net
       - backend-net
@@ -58,18 +55,10 @@ services:
       - site.crt
       - site.key
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    read_only: true
-    oom_score_adj: 0
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:/etc/docker/seccomp/custom-seccomp.json
-      - apparmor:custom-app
+        max-size: "10m"
+        max-file: "3"
     deploy:
       replicas: 2
       placement:
@@ -88,7 +77,6 @@ services:
 
   api:
     image: rajim59/swarmfort-api:latest
-    init: true
     networks:
       - backend-net
       - database-net
@@ -100,18 +88,10 @@ services:
       - db_password
       - api_key
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    read_only: true
-    oom_score_adj: -500
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:/etc/docker/seccomp/custom-seccomp.json
-      - apparmor:custom-app
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - tmp_api:/tmp
       - var_run_api:/var/run
@@ -119,7 +99,7 @@ services:
       replicas: 3
       placement:
         constraints:
-          - node.role == worker
+          - node.role == manager
       update_config:
         parallelism: 1
         delay: 10s
@@ -135,7 +115,6 @@ services:
 
   db:
     image: postgres:15-alpine
-    init: true
     networks:
       - database-net
     environment:
@@ -145,23 +124,16 @@ services:
     secrets:
       - db_password
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    oom_score_adj: -300
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:/etc/docker/seccomp/custom-seccomp.json
-      - apparmor:custom-app
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - pgdata:/var/lib/postgresql/data
     deploy:
       placement:
         constraints:
-          - node.role == worker
+          - node.role == manager
       resources:
         limits: { cpus: "1.00", memory: 1G }
         reservations: { cpus: "0.50", memory: 512M }
@@ -173,29 +145,21 @@ services:
 
   redis:
     image: redis:7-alpine
-    init: true
     networks:
       - database-net
     command: ["sh", "-c", "redis-server --requirepass $$(cat /run/secrets/api_key)"]
     secrets:
       - api_key
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    oom_score_adj: -200
-    security_opt:
-      - no-new-privileges:true
-      - seccomp:/etc/docker/seccomp/custom-seccomp.json
-      - apparmor:custom-app
+        max-size: "10m"
+        max-file: "3"
     deploy:
       replicas: 1
       placement:
         constraints:
-          - node.role == worker
+          - node.role == manager
       resources:
         limits: { cpus: "0.50", memory: 256M }
         reservations: { cpus: "0.25", memory: 128M }
@@ -207,7 +171,6 @@ services:
 
   prometheus:
     image: prom/prometheus:latest
-    init: true
     networks:
       - monitoring-net
     ports:
@@ -221,27 +184,22 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - prometheus_data:/prometheus
     deploy:
       replicas: 1
       placement:
         constraints:
-          - node.role == worker
+          - node.role == manager
       resources:
         limits: { memory: 512M }
 
   grafana:
     image: grafana/grafana:latest
-    init: true
     networks:
       - monitoring-net
     ports:
@@ -249,14 +207,10 @@ services:
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - grafana_data:/var/lib/grafana
     deploy:
@@ -269,20 +223,15 @@ services:
 
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
-    init: true
     networks:
       - monitoring-net
     ports:
       - "8080:8080"
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -290,25 +239,23 @@ services:
       - /var/lib/docker/:/var/lib/docker:ro
     deploy:
       mode: global
+      placement:
+        constraints:
+          - node.role == manager
       resources:
         limits: { memory: 256M }
 
   node-exporter:
     image: prom/node-exporter:latest
-    init: true
     networks:
       - monitoring-net
     ports:
       - "9100:9100"
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -318,12 +265,14 @@ services:
       - '--path.sysfs=/host/sys'
     deploy:
       mode: global
+      placement:
+        constraints:
+          - node.role == manager
       resources:
         limits: { memory: 64M }
 
   loki:
     image: grafana/loki:2.9.3
-    init: true
     networks:
       - monitoring-net
     ports:
@@ -333,78 +282,19 @@ services:
         target: /etc/loki/loki-config.yml
     command: -config.file=/etc/loki/loki-config.yml
     logging:
-      driver: fluentd
+      driver: json-file
       options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
+        max-size: "10m"
+        max-file: "3"
     volumes:
       - loki_data:/loki
     deploy:
       replicas: 1
       placement:
         constraints:
-          - node.role == worker
+          - node.role == manager
       resources:
         limits: { memory: 256M }
-
-  docker-events-exporter:
-    image: docker:cli
-    init: true
-    networks:
-      - monitoring-net
-    command:
-      - sh
-      - -c
-      - |
-        apk add --no-cache curl && \
-        while true; do
-          docker events --format '{{json .}}' | while read -r event; do
-            TS=$$(date +%s%N)
-            curl -s -X POST http://loki:3100/loki/api/v1/push \
-              -H "Content-Type: application/json" \
-              -d "{\"streams\":[{\"stream\":{\"job\":\"docker-events\"},\"values\":[[\"$$TS\",\"$$event\"]]}]}" > /dev/null 2>&1 || true
-          done
-          sleep 5
-        done
-    logging:
-      driver: fluentd
-      options:
-        fluentd-address: "localhost:24224"
-        tag: "{{.Name}}"
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    deploy:
-      mode: global
-      resources:
-        limits: { memory: 64M }
-
-  fluentd:
-    image: fluent/fluentd:v1.16-debian-1
-    init: true
-    networks:
-      - monitoring-net
-    configs:
-      - source: fluent_conf
-        target: /fluentd/etc/fluent.conf
-    volumes:
-      - fluentd_buffer:/fluentd/buffer
-    deploy:
-      mode: global
-      resources:
-        limits: { memory: 256M }
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
 
 volumes:
   pgdata:
@@ -421,6 +311,3 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
-  fluentd_buffer:
-  
-  
