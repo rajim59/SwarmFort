@@ -258,8 +258,6 @@ sysctl -p
 echo "✅ Docker setup completed successfully!"
 EOF
 }
-
-
 resource "azurerm_linux_virtual_machine" "manager" {
   name                = "swarm-manager-1"
   resource_group_name = azurerm_resource_group.swarm_rg.name
