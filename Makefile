@@ -94,6 +94,7 @@ setup-app-secrets:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
 	@ssh azureuser@$(MANAGER_IP) "printf 'SecureDbPass123!' | docker secret create db_password - || true"
 	@ssh azureuser@$(MANAGER_IP) "printf 'SecureApiKey456!' | docker secret create api_key - || true"
+	
 
 deploy-stack:
 	$(eval MANAGER_IP=$(shell cd infra/terraform && terraform output -raw manager_public_ip))
