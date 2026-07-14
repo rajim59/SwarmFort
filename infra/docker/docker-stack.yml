@@ -312,3 +312,10 @@ volumes:
       type: tmpfs
       device: tmpfs
 
+
+
+
+
+
+
+
